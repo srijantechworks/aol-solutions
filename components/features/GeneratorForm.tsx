@@ -1,7 +1,7 @@
 // components/features/GeneratorForm.tsx
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LinkIcon, Sparkles, SlidersHorizontal, Info, X, Loader2 } from 'lucide-react';
 import { DROPDOWN_OPTIONS } from '@/lib/constants';
 import CustomSelect from '../ui/CustomSelect';
@@ -35,12 +35,12 @@ export default function GeneratorForm() {
         }
     };
 
-    const isButtonDisabled = url.trim() === '' || isLoading;
+    const isButtonDisabled = url.trim() === '' || isLoading || errorMsg !== '';
     const hasSelectedOptions = Object.values(selections).some(val => val !== 'none');
 
     const handleToggleOptions = () => {
-        if (url.trim() === '' && !isLoading) {
-            setErrorMsg('Please enter a valid course URL to access options.');
+        if ((url.trim() === '' || errorMsg !== '') && !isLoading) {
+            if (url.trim() === '') setErrorMsg('Please enter a valid course URL to access options.');
             return;
         }
 
@@ -141,6 +141,27 @@ export default function GeneratorForm() {
             setShowAdvanced(false);
         }
     };
+
+    // Keyboard support for the modal
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (showModal && e.key === 'Enter') {
+                e.preventDefault();
+                handleConfirmModal();
+            }
+            if (showModal && e.key === 'Escape') {
+                setShowModal(false);
+            }
+        };
+
+        if (showModal) {
+            window.addEventListener('keydown', handleKeyDown);
+        }
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [showModal, pendingResult]);
 
     return (
         <>

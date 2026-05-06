@@ -1,6 +1,6 @@
 export default function AboutPage() {
   return (
-    <div className="max-w-3xl mx-auto px-6 py-12 md:py-20 text-neutral-800">
+    <div className="max-w-5xl mx-auto px-6 py-6 md:py-10 text-neutral-800">
       <div className="text-center mb-16">
         <h1 className="text-4xl md:text-5xl font-bold text-neutral-900 mb-6">About Srijan</h1>
         <p className="text-lg md:text-xl text-neutral-600">
