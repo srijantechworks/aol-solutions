@@ -14,6 +14,7 @@ export default function GeneratorForm() {
 
     const [isLoading, setIsLoading] = useState(false);
     const [apiResult, setApiResult] = useState<any>(null);
+    const [pendingResult, setPendingResult] = useState<any>(null);
 
     const [selections, setSelections] = useState({
         audience: 'none',
@@ -60,20 +61,18 @@ export default function GeneratorForm() {
     };
 
     // ==========================================
-    // REFACTORED: Bulletproof Fetch Logic
+    // CORE FETCH LOGIC
     // ==========================================
     const executeFetch = async (targetUrl: string, currentSelections: any, useSelections: boolean) => {
-        setShowModal(false);
         setIsLoading(true);
         setErrorMsg('');
         setApiResult(null);
+        setPendingResult(null);
 
         const payload = {
             url: targetUrl,
             ...(useSelections ? currentSelections : {})
         };
-
-        console.log(">> [DEBUG] Starting Fetch. Payload:", payload);
 
         try {
             const controller = new AbortController();
@@ -87,37 +86,41 @@ export default function GeneratorForm() {
             });
 
             clearTimeout(timeoutId);
-
-            console.log(">> [DEBUG] Response Status:", response.status);
-
             const data = await response.json();
-            console.log(">> [DEBUG] Response Data:", data);
 
             if (!response.ok) {
                 setErrorMsg(data.error || "An error occurred while validating the course link.");
+                setIsLoading(false);
             } else {
-                // SUCCESS STATE
-                setApiResult({
+                // SUCCESS
+                const result = {
                     eventId: data.eventId,
                     ...data.courseContext
-                });
+                };
 
-                // NEW: Auto-collapse the advanced options so the result is immediately visible!
-                setShowAdvanced(false);
+                // Logic: If user didn't pick any options, show modal first
+                if (!useSelections && !hasSelectedOptions) {
+                    setPendingResult(result);
+                    setShowModal(true);
+                    setIsLoading(false);
+                } else {
+                    // They either used options OR they just clicked "Continue" from the modal
+                    setApiResult(result);
+                    setShowAdvanced(false);
+                    setIsLoading(false);
+                }
             }
         } catch (err: any) {
-            console.error(">> [DEBUG] Fetch Error:", err);
-
+            console.error("Fetch Error:", err);
             if (err.name === 'AbortError') {
                 setErrorMsg("Request timed out. The server took too long to respond.");
             } else {
                 setErrorMsg("Network error. Please check your connection and try again.");
             }
-        } finally {
-            console.log(">> [DEBUG] Shutting off loading spinner.");
             setIsLoading(false);
         }
     };
+
     const handleGenerate = (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -126,21 +129,16 @@ export default function GeneratorForm() {
             return;
         }
 
-        // We check if it's a specific AOL link to decide about the modal.
-        // If it's NOT a recognized AOL link format, we skip the modal and 
-        // let the API return the "Please provide a valid..." error.
-        const isRecognizedAolLink = isAolLink(url);
+        // We trigger the fetch immediately. 
+        // The modal decision is now inside the SUCCESS path of executeFetch.
+        executeFetch(url, selections, hasSelectedOptions);
+    };
 
-        if (!isRecognizedAolLink) {
-            executeFetch(url, selections, hasSelectedOptions);
-            return;
-        }
-
-        // If link looks valid, check if we need to show the "Default Settings" modal
-        if (!hasSelectedOptions) {
-            setShowModal(true);
-        } else {
-            executeFetch(url, selections, true);
+    const handleConfirmModal = () => {
+        if (pendingResult) {
+            setApiResult(pendingResult);
+            setShowModal(false);
+            setShowAdvanced(false);
         }
     };
 
@@ -161,6 +159,9 @@ export default function GeneratorForm() {
                                 onChange={(e) => {
                                     setUrl(e.target.value);
                                     if (errorMsg) setErrorMsg('');
+                                    // Automatically close options and clear results on new input
+                                    if (showAdvanced) setShowAdvanced(false);
+                                    if (apiResult) setApiResult(null);
                                 }}
                                 placeholder="Paste your Art of Living course link here (e.g., https://...)"
                                 className="w-full bg-white border border-neutral-300 text-neutral-900 text-base md:text-lg rounded-2xl py-4 pl-12 pr-6 placeholder:text-neutral-400 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200 transition-all shadow-sm disabled:bg-neutral-50 disabled:text-neutral-500"
@@ -168,9 +169,7 @@ export default function GeneratorForm() {
                         </div>
 
                         {errorMsg && (
-                            <div
-                                className="w-full  text-red-700 px-4 py-2 flex items-center gap-3 animate-in fade-in slide-in-from-top-2"
-                            >
+                            <div className="w-full  text-red-700 px-4 py-2 flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
                                 <Info className="h-6 w-6 text-red-500 shrink-0" />
                                 <span className="font-semibold text-base md:text-lg">{errorMsg}</span>
                             </div>
@@ -182,13 +181,13 @@ export default function GeneratorForm() {
                             type="button"
                             onClick={handleToggleOptions}
                             disabled={isLoading}
-                            className={`flex-1 lg:flex-none flex items-center justify-center gap-2 border font-medium rounded-2xl px-6 py-4 transition-colors ${isButtonDisabled && !isLoading
-                                    ? 'opacity-50 cursor-not-allowed bg-white border-neutral-300 text-neutral-700'
-                                    : isLoading
-                                        ? 'opacity-50 cursor-not-allowed bg-white border-neutral-300 text-neutral-400'
-                                        : showAdvanced
-                                            ? 'bg-amber-100 border-amber-300 text-amber-900 cursor-pointer hover:bg-amber-200'
-                                            : 'bg-white border-neutral-300 text-neutral-700 hover:bg-amber-200 cursor-pointer'
+                            className={`flex-1 lg:flex-none flex items-center justify-center gap-2 border font-medium rounded-2xl px-6 py-4 transition-colors ${url.trim() === '' && !isLoading
+                                ? 'opacity-50 cursor-not-allowed bg-white border-neutral-300 text-neutral-700'
+                                : isLoading
+                                    ? 'opacity-50 cursor-not-allowed bg-white border-neutral-300 text-neutral-400'
+                                    : showAdvanced
+                                        ? 'bg-amber-100 border-amber-300 text-amber-900 cursor-pointer hover:bg-amber-200'
+                                        : 'bg-white border-neutral-300 text-neutral-700 hover:bg-amber-200 cursor-pointer'
                                 }`}
                         >
                             {showAdvanced ? (
@@ -209,8 +208,8 @@ export default function GeneratorForm() {
                                 type="submit"
                                 disabled={isButtonDisabled}
                                 className={`flex-1 lg:flex-none flex items-center justify-center gap-2 font-semibold rounded-2xl px-8 py-4 transition-colors shadow-md min-w-[200px] ${isButtonDisabled
-                                        ? 'opacity-50 cursor-not-allowed bg-amber-500 text-white'
-                                        : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
+                                    ? 'opacity-50 cursor-not-allowed bg-amber-500 text-white'
+                                    : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
                                     }`}
                             >
                                 {isLoading ? (
@@ -257,8 +256,8 @@ export default function GeneratorForm() {
                                 type="submit"
                                 disabled={isButtonDisabled}
                                 className={`w-full sm:w-auto flex items-center justify-center gap-2 font-semibold rounded-2xl px-12 py-4 transition-colors shadow-md min-w-[250px] ${isButtonDisabled
-                                        ? 'opacity-50 cursor-not-allowed bg-amber-500 text-white'
-                                        : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
+                                    ? 'opacity-50 cursor-not-allowed bg-amber-500 text-white'
+                                    : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
                                     }`}
                             >
                                 {isLoading ? (
@@ -325,10 +324,9 @@ export default function GeneratorForm() {
                                 Review Options
                             </button>
 
-                            {/* UPDATED: Pass false explicitly to ignore the empty options */}
                             <button
                                 type="button"
-                                onClick={() => executeFetch(url, selections, false)}
+                                onClick={handleConfirmModal}
                                 className="px-6 py-3 rounded-xl font-medium text-white bg-amber-500 hover:bg-amber-600 transition-colors flex items-center justify-center gap-2 shadow-sm w-full sm:w-auto cursor-pointer"
                             >
                                 <Sparkles className="h-4 w-4" />
