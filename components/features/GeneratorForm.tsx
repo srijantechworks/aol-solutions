@@ -23,20 +23,22 @@ export default function GeneratorForm() {
         emoji: 'none',
     });
 
-    const isValidUrl = (urlString: string) => {
+    const isAolLink = (urlString: string) => {
         try {
-            new URL(urlString);
-            return true;
+            const urlObj = new URL(urlString);
+            const isAolOnline = urlObj.hostname.includes("artofliving.online") && urlObj.pathname.includes("registration");
+            const isAoltIn = urlObj.hostname.includes("aolt.in");
+            return isAolOnline || isAoltIn;
         } catch (e) {
             return false;
         }
     };
 
-    const isButtonDisabled = url.trim() === '' || !isValidUrl(url) || isLoading;
+    const isButtonDisabled = url.trim() === '' || isLoading;
     const hasSelectedOptions = Object.values(selections).some(val => val !== 'none');
 
     const handleToggleOptions = () => {
-        if (isButtonDisabled && !isLoading) {
+        if (url.trim() === '' && !isLoading) {
             setErrorMsg('Please enter a valid course URL to access options.');
             return;
         }
@@ -62,9 +64,9 @@ export default function GeneratorForm() {
     // ==========================================
     const executeFetch = async (targetUrl: string, currentSelections: any, useSelections: boolean) => {
         setShowModal(false);
-        setIsLoading(true); 
-        setErrorMsg(''); 
-        setApiResult(null); 
+        setIsLoading(true);
+        setErrorMsg('');
+        setApiResult(null);
 
         const payload = {
             url: targetUrl,
@@ -84,7 +86,7 @@ export default function GeneratorForm() {
                 signal: controller.signal
             });
 
-            clearTimeout(timeoutId); 
+            clearTimeout(timeoutId);
 
             console.log(">> [DEBUG] Response Status:", response.status);
 
@@ -99,13 +101,13 @@ export default function GeneratorForm() {
                     eventId: data.eventId,
                     ...data.courseContext
                 });
-                
+
                 // NEW: Auto-collapse the advanced options so the result is immediately visible!
                 setShowAdvanced(false);
             }
         } catch (err: any) {
             console.error(">> [DEBUG] Fetch Error:", err);
-            
+
             if (err.name === 'AbortError') {
                 setErrorMsg("Request timed out. The server took too long to respond.");
             } else {
@@ -113,21 +115,31 @@ export default function GeneratorForm() {
             }
         } finally {
             console.log(">> [DEBUG] Shutting off loading spinner.");
-            setIsLoading(false); 
+            setIsLoading(false);
         }
     };
     const handleGenerate = (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (isButtonDisabled) {
-            if (!isLoading) setErrorMsg('Please enter a valid course URL to create a message.');
+        if (url.trim() === '') {
+            setErrorMsg('Please enter a valid course URL to create a message.');
             return;
         }
 
+        // We check if it's a specific AOL link to decide about the modal.
+        // If it's NOT a recognized AOL link format, we skip the modal and 
+        // let the API return the "Please provide a valid..." error.
+        const isRecognizedAolLink = isAolLink(url);
+
+        if (!isRecognizedAolLink) {
+            executeFetch(url, selections, hasSelectedOptions);
+            return;
+        }
+
+        // If link looks valid, check if we need to show the "Default Settings" modal
         if (!hasSelectedOptions) {
             setShowModal(true);
         } else {
-            // Explicitly pass the current state to prevent stale closures
             executeFetch(url, selections, true);
         }
     };
@@ -145,7 +157,7 @@ export default function GeneratorForm() {
                             <input
                                 type="url"
                                 value={url}
-                                disabled={isLoading} 
+                                disabled={isLoading}
                                 onChange={(e) => {
                                     setUrl(e.target.value);
                                     if (errorMsg) setErrorMsg('');
@@ -156,9 +168,11 @@ export default function GeneratorForm() {
                         </div>
 
                         {errorMsg && (
-                            <div className="text-red-500 text-sm flex items-center gap-1.5 ml-4 animate-in fade-in slide-in-from-top-1">
-                                <Info className="h-4 w-4" />
-                                {errorMsg}
+                            <div
+                                className="w-full  text-red-700 px-4 py-2 flex items-center gap-3 animate-in fade-in slide-in-from-top-2"
+                            >
+                                <Info className="h-6 w-6 text-red-500 shrink-0" />
+                                <span className="font-semibold text-base md:text-lg">{errorMsg}</span>
                             </div>
                         )}
                     </div>
@@ -168,15 +182,14 @@ export default function GeneratorForm() {
                             type="button"
                             onClick={handleToggleOptions}
                             disabled={isLoading}
-                            className={`flex-1 lg:flex-none flex items-center justify-center gap-2 border font-medium rounded-2xl px-6 py-4 transition-colors ${
-                                isButtonDisabled && !isLoading
+                            className={`flex-1 lg:flex-none flex items-center justify-center gap-2 border font-medium rounded-2xl px-6 py-4 transition-colors ${isButtonDisabled && !isLoading
                                     ? 'opacity-50 cursor-not-allowed bg-white border-neutral-300 text-neutral-700'
                                     : isLoading
                                         ? 'opacity-50 cursor-not-allowed bg-white border-neutral-300 text-neutral-400'
                                         : showAdvanced
                                             ? 'bg-amber-100 border-amber-300 text-amber-900 cursor-pointer hover:bg-amber-200'
                                             : 'bg-white border-neutral-300 text-neutral-700 hover:bg-amber-200 cursor-pointer'
-                            }`}
+                                }`}
                         >
                             {showAdvanced ? (
                                 <>
@@ -195,11 +208,10 @@ export default function GeneratorForm() {
                             <button
                                 type="submit"
                                 disabled={isButtonDisabled}
-                                className={`flex-1 lg:flex-none flex items-center justify-center gap-2 font-semibold rounded-2xl px-8 py-4 transition-colors shadow-md min-w-[200px] ${
-                                    isButtonDisabled
+                                className={`flex-1 lg:flex-none flex items-center justify-center gap-2 font-semibold rounded-2xl px-8 py-4 transition-colors shadow-md min-w-[200px] ${isButtonDisabled
                                         ? 'opacity-50 cursor-not-allowed bg-amber-500 text-white'
                                         : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
-                                }`}
+                                    }`}
                             >
                                 {isLoading ? (
                                     <>
@@ -244,11 +256,10 @@ export default function GeneratorForm() {
                             <button
                                 type="submit"
                                 disabled={isButtonDisabled}
-                                className={`w-full sm:w-auto flex items-center justify-center gap-2 font-semibold rounded-2xl px-12 py-4 transition-colors shadow-md min-w-[250px] ${
-                                    isButtonDisabled
+                                className={`w-full sm:w-auto flex items-center justify-center gap-2 font-semibold rounded-2xl px-12 py-4 transition-colors shadow-md min-w-[250px] ${isButtonDisabled
                                         ? 'opacity-50 cursor-not-allowed bg-amber-500 text-white'
                                         : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
-                                }`}
+                                    }`}
                             >
                                 {isLoading ? (
                                     <>

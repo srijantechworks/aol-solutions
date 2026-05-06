@@ -36,7 +36,7 @@ export async function POST(request: Request) {
         // We ensure we found an ID AND that it only consists of numbers (Regex: ^\d+$)
         if (!eventId || !/^\d+$/.test(eventId)) {
             return NextResponse.json({
-                error: 'Could not extract a valid Event ID. Please ensure this is a standard Art of Living registration link.'
+                error: 'Please provide a valid Art of Living course link'
             }, { status: 400 });
         }
 
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
         const apiURL = process.env.AOL_API_URL;
         
         if (!apiURL) {
-            console.error("CRITICAL: AOL_API_KEY is missing from environment variables.");
+            console.error("CRITICAL: AOL_API_URL is missing from environment variables.");
             return NextResponse.json({ error: 'Server configuration error.' }, { status: 500 });
         }
 
@@ -60,11 +60,21 @@ export async function POST(request: Request) {
 
         console.log(`Fetching details for Event ID: ${eventId} from AOL API...`);
 
-        const apiResponse = await fetch(apiURL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", 'Accept': 'application/json, text/javascript, */*; q=0.01' }, body: params.toString() });
+        const apiResponse = await fetch(apiURL, { 
+            method: "POST", 
+            headers: { 
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", 
+                'Accept': 'application/json, text/javascript, */*; q=0.01' 
+            }, 
+            body: params.toString() 
+        });
 
 
         if (!apiResponse.ok) {
-            throw new Error(`AOL API responded with status: ${apiResponse.status}`);
+            // If the API itself fails (e.g., 404 or 400), it's likely an inactive or invalid event ID
+            return NextResponse.json({
+                error: 'This is not an active Art of living course link'
+            }, { status: apiResponse.status === 404 ? 404 : 400 });
         }
 
         // The response is a single JSON object
@@ -73,10 +83,11 @@ export async function POST(request: Request) {
         // ==========================================
         // 3. Validation & Data Extraction
         // ==========================================
-        // Security check
-        if (courseData.org_full_name !== "The Art of Living") {
+        // Security check & Inactive link check
+        // If the API returns null or doesn't have the expected organization name
+        if (!courseData || courseData.org_full_name !== "The Art of Living") {
             return NextResponse.json({
-                error: 'Security Check Failed: This event does not belong to The Art of Living.'
+                error: 'This is not an active Art of living course link'
             }, { status: 403 });
         }
 
@@ -127,6 +138,6 @@ export async function POST(request: Request) {
 
     } catch (error: any) {
         console.error("API Route Error:", error);
-        return NextResponse.json({ error: "An internal server error occured while processing the URL." }, { status: 500 });
+        return NextResponse.json({ error: "An internal server error occurred while processing the URL." }, { status: 500 });
     }
 }
