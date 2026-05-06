@@ -16,41 +16,42 @@ export async function POST(request: Request) {
         try {
             urlObj = new URL(url);
         } catch (e) {
-            return NextResponse.json({ error: 'Malformed URL provided. Ensure it includes https://' }, { status: 400 });
+            // Standardized error for malformed URLs
+            return NextResponse.json({ error: 'Please provide a valid Art of Living course link' }, { status: 400 });
         }
 
         let eventId: string | null = null;
+        eventId = urlObj.searchParams.get("event_id") || urlObj.searchParams.get("id");
 
-        if (urlObj.hostname.includes("artofliving.online") && urlObj.pathname.includes("registration")) {
-            eventId = urlObj.searchParams.get("event_id");
-        }
-        else if (urlObj.hostname.includes("aolt.in")) {
+        if (!eventId) {
             const pathSegments = urlObj.pathname.split("/").filter(Boolean);
-
-            if (pathSegments.length > 0) {
-                eventId = pathSegments[0];
+            for (const segment of pathSegments) {
+                if (/^\d{5,9}$/.test(segment)) {
+                    eventId = segment;
+                    break;
+                }
             }
         }
 
-        // Final Security & Format Check
-        // We ensure we found an ID AND that it only consists of numbers (Regex: ^\d+$)
         if (!eventId || !/^\d+$/.test(eventId)) {
             return NextResponse.json({
-                error: 'Could not extract a valid Event ID. Please ensure this is a standard Art of Living registration link.'
+                error: 'Please provide a valid Art of Living course link'
             }, { status: 400 });
         }
 
         // ==========================================
-        // 2. Fetch Data from AOL API
+        // 2. Configuration Check
         // ==========================================
-        // Load the API Key from the environment variables
         const apiURL = process.env.AOL_API_URL;
-        
         if (!apiURL) {
-            console.error("CRITICAL: AOL_API_KEY is missing from environment variables.");
-            return NextResponse.json({ error: 'Server configuration error.' }, { status: 500 });
+            console.error("CRITICAL: AOL_API_URL is missing.");
+            // Consistent error message as requested
+            return NextResponse.json({ error: 'Please provide a valid Art of Living course link' }, { status: 400 });
         }
 
+        // ==========================================
+        // 3. Fetch Data from AOL API
+        // ==========================================
         const params = new URLSearchParams();
         params.append("event_id", eventId);
         params.append('url_reg_type', '');
@@ -58,43 +59,71 @@ export async function POST(request: Request) {
         params.append('dis_id', '');
         params.append('g_dis', '');
 
-        console.log(`Fetching details for Event ID: ${eventId} from AOL API...`);
-
-        const apiResponse = await fetch(apiURL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", 'Accept': 'application/json, text/javascript, */*; q=0.01' }, body: params.toString() });
-
-
-        if (!apiResponse.ok) {
-            throw new Error(`AOL API responded with status: ${apiResponse.status}`);
+        let apiResponse;
+        try {
+            apiResponse = await fetch(apiURL, { 
+                method: "POST", 
+                headers: { 
+                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", 
+                    'Accept': 'application/json, text/javascript, */*; q=0.01' 
+                }, 
+                body: params.toString() 
+            });
+        } catch (fetchError) {
+            return NextResponse.json({ error: 'This Art of Living course is no longer active or accepting registrations.' }, { status: 400 });
         }
 
-        // The response is a single JSON object
-        const courseData = await apiResponse.json();
+        if (!apiResponse.ok) {
+            return NextResponse.json({ error: 'This Art of Living course is no longer active or accepting registrations.' }, { status: 400 });
+        }
+
+        const responseText = await apiResponse.text();
+        let rawData;
+        try {
+            rawData = JSON.parse(responseText);
+        } catch (e) {
+            return NextResponse.json({ error: 'This Art of Living course is no longer active or accepting registrations.' }, { status: 400 });
+        }
+
+        const courseData = Array.isArray(rawData) ? rawData[0] : rawData;
 
         // ==========================================
-        // 3. Validation & Data Extraction
+        // 4. Validation & Data Extraction
         // ==========================================
-        // Security check
-        if (courseData.org_full_name !== "The Art of Living") {
+        
+        // Identify course name
+        const courseName = courseData?.course_event_type_label || courseData?.event_name || courseData?.course_name;
+        
+        // Success Heuristic:
+        // A link is ACTIVE if we have a course name AND no explicit error flag.
+        const explicitError = (courseData?.is_error === 1 || courseData?.is_error === "1") || 
+                              (courseData?.status === "error") ||
+                              (courseData?.error && courseData.error !== "0" && courseData.error !== 0 && typeof courseData.error === 'string' && courseData.error.length > 1);
+
+        if (!courseData || !courseName || explicitError) {
             return NextResponse.json({
-                error: 'Security Check Failed: This event does not belong to The Art of Living.'
+                error: 'This Art of Living course is no longer active or accepting registrations.'
             }, { status: 403 });
         }
 
-        // Parse teacher info safely since it comes back as a stringified JSON array
+        // Parse teacher info safely
         let parsedTeachers = [];
         try {
             if (courseData.teacher_info) {
-                parsedTeachers = JSON.parse(courseData.teacher_info);
+                if (typeof courseData.teacher_info === 'string') {
+                    parsedTeachers = JSON.parse(courseData.teacher_info);
+                } else if (Array.isArray(courseData.teacher_info)) {
+                    parsedTeachers = courseData.teacher_info;
+                }
             }
         } catch (e) {
-            console.warn("Could not parse teacher_info JSON string");
+            console.warn("Could not parse teacher_info");
         }
 
-        // Extract only the juicy context we want to feed to the LLM
         const extractedContext = {
-            courseName: courseData.course_event_type_label,
-            organization: courseData.org_full_name,
-            amount: courseData.amount,
+            courseName: courseName,
+            organization: courseData.org_full_name || "The Art of Living",
+            amount: courseData.amount || "See registration link",
             startDate: courseData.start_date,
             endDate: courseData.end_date,
             weekdayTimings: courseData.weekdaytimings,
@@ -102,31 +131,19 @@ export async function POST(request: Request) {
             language: courseData.language_of_instruction,
             address: courseData.address,
             city: courseData.course_city,
-            teachers: parsedTeachers // This will be an array of objects like { teacher_name: "..." }
+            teachers: parsedTeachers
         };
 
-        console.log(NextResponse.json({
-            success: true,
-            message: "Validation passed and data fetched successfully.",
-            eventId: eventId,
-            courseContext: extractedContext,
-            userOptions: options
-        }));
-
-        // ==========================================
-        // 4. Return to Client
-        // ==========================================
         return NextResponse.json({
             success: true,
-            message: "Validation passed and data fetched successfully.",
             eventId: eventId,
             courseContext: extractedContext,
             userOptions: options
         });
 
-
     } catch (error: any) {
-        console.error("API Route Error:", error);
-        return NextResponse.json({ error: "An internal server error occured while processing the URL." }, { status: 500 });
+        return NextResponse.json({ 
+            error: "This Art of Living course is no longer active or accepting registrations." 
+        }, { status: 400 });
     }
 }

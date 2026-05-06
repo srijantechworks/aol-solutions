@@ -9,8 +9,8 @@ export default function Home() {
         Create Course Messages
       </h1>
       {/* Updated: Medium gray paragraph text */}
-      <p className="mt-6 mb-6 max-w-2xl text-lg text-neutral-600">
-        Paste your course link below to instantly generate engaging, celebratory promotional messages using AI.
+      <p className="mt-6 mb-6 max-w-3xl text-lg text-neutral-600">
+        Paste your course link below to instantly generate engaging, promotional messages using AI.
       </p>
 
       <GeneratorForm />

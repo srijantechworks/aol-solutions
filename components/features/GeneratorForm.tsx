@@ -1,7 +1,7 @@
 // components/features/GeneratorForm.tsx
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LinkIcon, Sparkles, SlidersHorizontal, Info, X, Loader2 } from 'lucide-react';
 import { DROPDOWN_OPTIONS } from '@/lib/constants';
 import CustomSelect from '../ui/CustomSelect';
@@ -14,6 +14,7 @@ export default function GeneratorForm() {
 
     const [isLoading, setIsLoading] = useState(false);
     const [apiResult, setApiResult] = useState<any>(null);
+    const [pendingResult, setPendingResult] = useState<any>(null);
 
     const [selections, setSelections] = useState({
         audience: 'none',
@@ -23,21 +24,31 @@ export default function GeneratorForm() {
         emoji: 'none',
     });
 
-    const isValidUrl = (urlString: string) => {
+    const isAolLink = (urlString: string) => {
         try {
-            new URL(urlString);
-            return true;
+            const urlObj = new URL(urlString);
+            const isAolOnline = urlObj.hostname.includes("artofliving.online") && urlObj.pathname.includes("registration");
+            const isAoltIn = urlObj.hostname.includes("aolt.in");
+            return isAolOnline || isAoltIn;
         } catch (e) {
             return false;
         }
     };
 
-    const isButtonDisabled = url.trim() === '' || !isValidUrl(url) || isLoading;
+    const looksLikeUrl = (urlString: string) => {
+        // Broad regex to catch domains (google.com) even without protocol
+        const regex = /^(https?:\/\/)?([\w\-]+\.)+[\w\-]{2,}(\/[\w\-./?%&=]*)?$/;
+        return regex.test(urlString.trim());
+    };
+
+    const isInvalid = url.trim() === '' || !looksLikeUrl(url) || errorMsg !== '';
     const hasSelectedOptions = Object.values(selections).some(val => val !== 'none');
 
     const handleToggleOptions = () => {
-        if (isButtonDisabled && !isLoading) {
-            setErrorMsg('Please enter a valid course URL to access options.');
+        if (isLoading) return;
+
+        if (isInvalid) {
+            setErrorMsg('Please enter a link/url to access options');
             return;
         }
 
@@ -58,20 +69,18 @@ export default function GeneratorForm() {
     };
 
     // ==========================================
-    // REFACTORED: Bulletproof Fetch Logic
+    // CORE FETCH LOGIC
     // ==========================================
     const executeFetch = async (targetUrl: string, currentSelections: any, useSelections: boolean) => {
-        setShowModal(false);
-        setIsLoading(true); 
-        setErrorMsg(''); 
-        setApiResult(null); 
+        setIsLoading(true);
+        setErrorMsg('');
+        setApiResult(null);
+        setPendingResult(null);
 
         const payload = {
             url: targetUrl,
             ...(useSelections ? currentSelections : {})
         };
-
-        console.log(">> [DEBUG] Starting Fetch. Payload:", payload);
 
         try {
             const controller = new AbortController();
@@ -84,53 +93,84 @@ export default function GeneratorForm() {
                 signal: controller.signal
             });
 
-            clearTimeout(timeoutId); 
-
-            console.log(">> [DEBUG] Response Status:", response.status);
-
+            clearTimeout(timeoutId);
             const data = await response.json();
-            console.log(">> [DEBUG] Response Data:", data);
 
             if (!response.ok) {
                 setErrorMsg(data.error || "An error occurred while validating the course link.");
+                setIsLoading(false);
             } else {
-                // SUCCESS STATE
-                setApiResult({
+                // SUCCESS
+                const result = {
                     eventId: data.eventId,
                     ...data.courseContext
-                });
-                
-                // NEW: Auto-collapse the advanced options so the result is immediately visible!
-                setShowAdvanced(false);
+                };
+
+                // Logic: If user didn't pick any options, show modal first
+                if (!useSelections && !hasSelectedOptions) {
+                    setPendingResult(result);
+                    setShowModal(true);
+                    setIsLoading(false);
+                } else {
+                    // They either used options OR they just clicked "Continue" from the modal
+                    setApiResult(result);
+                    setShowAdvanced(false);
+                    setIsLoading(false);
+                }
             }
         } catch (err: any) {
-            console.error(">> [DEBUG] Fetch Error:", err);
-            
+            console.error("Fetch Error:", err);
             if (err.name === 'AbortError') {
                 setErrorMsg("Request timed out. The server took too long to respond.");
             } else {
                 setErrorMsg("Network error. Please check your connection and try again.");
             }
-        } finally {
-            console.log(">> [DEBUG] Shutting off loading spinner.");
-            setIsLoading(false); 
+            setIsLoading(false);
         }
     };
+
     const handleGenerate = (e: React.FormEvent) => {
         e.preventDefault();
+        if (isLoading) return;
 
-        if (isButtonDisabled) {
-            if (!isLoading) setErrorMsg('Please enter a valid course URL to create a message.');
+        if (isInvalid) {
+            setErrorMsg('Please enter a link/url to create message');
             return;
         }
 
-        if (!hasSelectedOptions) {
-            setShowModal(true);
-        } else {
-            // Explicitly pass the current state to prevent stale closures
-            executeFetch(url, selections, true);
+        // We trigger the fetch immediately. 
+        // The modal decision is now inside the SUCCESS path of executeFetch.
+        executeFetch(url, selections, hasSelectedOptions);
+    };
+
+    const handleConfirmModal = () => {
+        if (pendingResult) {
+            setApiResult(pendingResult);
+            setShowModal(false);
+            setShowAdvanced(false);
         }
     };
+
+    // Keyboard support for the modal
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (showModal && e.key === 'Enter') {
+                e.preventDefault();
+                handleConfirmModal();
+            }
+            if (showModal && e.key === 'Escape') {
+                setShowModal(false);
+            }
+        };
+
+        if (showModal) {
+            window.addEventListener('keydown', handleKeyDown);
+        }
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [showModal, pendingResult]);
 
     return (
         <>
@@ -145,10 +185,13 @@ export default function GeneratorForm() {
                             <input
                                 type="url"
                                 value={url}
-                                disabled={isLoading} 
+                                disabled={isLoading}
                                 onChange={(e) => {
                                     setUrl(e.target.value);
                                     if (errorMsg) setErrorMsg('');
+                                    // Automatically close options and clear results on new input
+                                    if (showAdvanced) setShowAdvanced(false);
+                                    if (apiResult) setApiResult(null);
                                 }}
                                 placeholder="Paste your Art of Living course link here (e.g., https://...)"
                                 className="w-full bg-white border border-neutral-300 text-neutral-900 text-base md:text-lg rounded-2xl py-4 pl-12 pr-6 placeholder:text-neutral-400 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200 transition-all shadow-sm disabled:bg-neutral-50 disabled:text-neutral-500"
@@ -156,9 +199,9 @@ export default function GeneratorForm() {
                         </div>
 
                         {errorMsg && (
-                            <div className="text-red-500 text-sm flex items-center gap-1.5 ml-4 animate-in fade-in slide-in-from-top-1">
-                                <Info className="h-4 w-4" />
-                                {errorMsg}
+                            <div className="w-full  text-red-700 px-4 py-2 flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                                <Info className="h-6 w-6 text-red-500 shrink-0" />
+                                <span className="font-semibold text-base md:text-lg">{errorMsg}</span>
                             </div>
                         )}
                     </div>
@@ -168,15 +211,14 @@ export default function GeneratorForm() {
                             type="button"
                             onClick={handleToggleOptions}
                             disabled={isLoading}
-                            className={`flex-1 lg:flex-none flex items-center justify-center gap-2 border font-medium rounded-2xl px-6 py-4 transition-colors ${
-                                isButtonDisabled && !isLoading
-                                    ? 'opacity-50 cursor-not-allowed bg-white border-neutral-300 text-neutral-700'
-                                    : isLoading
-                                        ? 'opacity-50 cursor-not-allowed bg-white border-neutral-300 text-neutral-400'
-                                        : showAdvanced
-                                            ? 'bg-amber-100 border-amber-300 text-amber-900 cursor-pointer hover:bg-amber-200'
-                                            : 'bg-white border-neutral-300 text-neutral-700 hover:bg-amber-200 cursor-pointer'
-                            }`}
+                            className={`flex-1 lg:flex-none flex items-center justify-center gap-2 border font-medium rounded-2xl px-6 py-4 transition-colors ${isInvalid && !isLoading
+                                ? 'opacity-50 cursor-not-allowed bg-white border-neutral-300 text-neutral-700'
+                                : isLoading
+                                    ? 'opacity-50 cursor-not-allowed bg-white border-neutral-300 text-neutral-400'
+                                    : showAdvanced
+                                        ? 'bg-amber-100 border-amber-300 text-amber-900 cursor-pointer hover:bg-amber-200'
+                                        : 'bg-white border-neutral-300 text-neutral-700 hover:bg-amber-200 cursor-pointer'
+                                }`}
                         >
                             {showAdvanced ? (
                                 <>
@@ -194,12 +236,11 @@ export default function GeneratorForm() {
                         {!showAdvanced && (
                             <button
                                 type="submit"
-                                disabled={isButtonDisabled}
-                                className={`flex-1 lg:flex-none flex items-center justify-center gap-2 font-semibold rounded-2xl px-8 py-4 transition-colors shadow-md min-w-[200px] ${
-                                    isButtonDisabled
-                                        ? 'opacity-50 cursor-not-allowed bg-amber-500 text-white'
-                                        : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
-                                }`}
+                                disabled={isLoading}
+                                className={`flex-1 lg:flex-none flex items-center justify-center gap-2 font-semibold rounded-2xl px-8 py-4 transition-colors shadow-md min-w-[200px] ${isInvalid && !isLoading
+                                    ? 'opacity-50 cursor-not-allowed bg-amber-500 text-white'
+                                    : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
+                                    }`}
                             >
                                 {isLoading ? (
                                     <>
@@ -243,12 +284,11 @@ export default function GeneratorForm() {
                         <div className="mt-10 flex justify-center">
                             <button
                                 type="submit"
-                                disabled={isButtonDisabled}
-                                className={`w-full sm:w-auto flex items-center justify-center gap-2 font-semibold rounded-2xl px-12 py-4 transition-colors shadow-md min-w-[250px] ${
-                                    isButtonDisabled
-                                        ? 'opacity-50 cursor-not-allowed bg-amber-500 text-white'
-                                        : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
-                                }`}
+                                disabled={isLoading}
+                                className={`w-full sm:w-auto flex items-center justify-center gap-2 font-semibold rounded-2xl px-12 py-4 transition-colors shadow-md min-w-[250px] ${isInvalid && !isLoading
+                                    ? 'opacity-50 cursor-not-allowed bg-amber-500 text-white'
+                                    : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
+                                    }`}
                             >
                                 {isLoading ? (
                                     <>
@@ -314,10 +354,9 @@ export default function GeneratorForm() {
                                 Review Options
                             </button>
 
-                            {/* UPDATED: Pass false explicitly to ignore the empty options */}
                             <button
                                 type="button"
-                                onClick={() => executeFetch(url, selections, false)}
+                                onClick={handleConfirmModal}
                                 className="px-6 py-3 rounded-xl font-medium text-white bg-amber-500 hover:bg-amber-600 transition-colors flex items-center justify-center gap-2 shadow-sm w-full sm:w-auto cursor-pointer"
                             >
                                 <Sparkles className="h-4 w-4" />
