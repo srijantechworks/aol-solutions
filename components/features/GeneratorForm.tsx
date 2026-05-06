@@ -35,12 +35,20 @@ export default function GeneratorForm() {
         }
     };
 
-    const isButtonDisabled = url.trim() === '' || isLoading || errorMsg !== '';
+    const looksLikeUrl = (urlString: string) => {
+        // Broad regex to catch domains (google.com) even without protocol
+        const regex = /^(https?:\/\/)?([\w\-]+\.)+[\w\-]{2,}(\/[\w\-./?%&=]*)?$/;
+        return regex.test(urlString.trim());
+    };
+
+    const isInvalid = url.trim() === '' || !looksLikeUrl(url) || errorMsg !== '';
     const hasSelectedOptions = Object.values(selections).some(val => val !== 'none');
 
     const handleToggleOptions = () => {
-        if ((url.trim() === '' || errorMsg !== '') && !isLoading) {
-            if (url.trim() === '') setErrorMsg('Please enter a valid course URL to access options.');
+        if (isLoading) return;
+
+        if (isInvalid) {
+            setErrorMsg('Please enter a link/url to access options');
             return;
         }
 
@@ -123,9 +131,10 @@ export default function GeneratorForm() {
 
     const handleGenerate = (e: React.FormEvent) => {
         e.preventDefault();
+        if (isLoading) return;
 
-        if (url.trim() === '') {
-            setErrorMsg('Please enter a valid course URL to create a message.');
+        if (isInvalid) {
+            setErrorMsg('Please enter a link/url to create message');
             return;
         }
 
@@ -202,7 +211,7 @@ export default function GeneratorForm() {
                             type="button"
                             onClick={handleToggleOptions}
                             disabled={isLoading}
-                            className={`flex-1 lg:flex-none flex items-center justify-center gap-2 border font-medium rounded-2xl px-6 py-4 transition-colors ${url.trim() === '' && !isLoading
+                            className={`flex-1 lg:flex-none flex items-center justify-center gap-2 border font-medium rounded-2xl px-6 py-4 transition-colors ${isInvalid && !isLoading
                                 ? 'opacity-50 cursor-not-allowed bg-white border-neutral-300 text-neutral-700'
                                 : isLoading
                                     ? 'opacity-50 cursor-not-allowed bg-white border-neutral-300 text-neutral-400'
@@ -227,8 +236,8 @@ export default function GeneratorForm() {
                         {!showAdvanced && (
                             <button
                                 type="submit"
-                                disabled={isButtonDisabled}
-                                className={`flex-1 lg:flex-none flex items-center justify-center gap-2 font-semibold rounded-2xl px-8 py-4 transition-colors shadow-md min-w-[200px] ${isButtonDisabled
+                                disabled={isLoading}
+                                className={`flex-1 lg:flex-none flex items-center justify-center gap-2 font-semibold rounded-2xl px-8 py-4 transition-colors shadow-md min-w-[200px] ${isInvalid && !isLoading
                                     ? 'opacity-50 cursor-not-allowed bg-amber-500 text-white'
                                     : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
                                     }`}
@@ -275,8 +284,8 @@ export default function GeneratorForm() {
                         <div className="mt-10 flex justify-center">
                             <button
                                 type="submit"
-                                disabled={isButtonDisabled}
-                                className={`w-full sm:w-auto flex items-center justify-center gap-2 font-semibold rounded-2xl px-12 py-4 transition-colors shadow-md min-w-[250px] ${isButtonDisabled
+                                disabled={isLoading}
+                                className={`w-full sm:w-auto flex items-center justify-center gap-2 font-semibold rounded-2xl px-12 py-4 transition-colors shadow-md min-w-[250px] ${isInvalid && !isLoading
                                     ? 'opacity-50 cursor-not-allowed bg-amber-500 text-white'
                                     : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
                                     }`}
