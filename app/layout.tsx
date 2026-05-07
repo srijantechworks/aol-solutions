@@ -11,17 +11,33 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
     <html lang="en">
-      {/* Updated: Warm cream background, dark gray text, warm selection highlight */}
-      <body className="min-h-screen bg-amber-50 text-neutral-900 antialiased selection:bg-amber-200 selection:text-amber-900">
+      <body className="min-h-screen font-sans antialiased text-neutral-900">
+        
+        {/* Fixed Background Layer */}
+        <div 
+          className="fixed inset-0 -z-10 w-full h-full"
+          style={{ 
+            backgroundImage: "url('/vm_update.png')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center', // Ensures the temple stays in view
+            backgroundRepeat: 'no-repeat'
+          }}
+        />
+
+        {/* Optional: Dark Overlay to make text pop */}
+        <div className="fixed inset-0 -z-10 bg-black/20 w-full h-full" />
+
         <Navbar />
-        <main className="mx-auto max-w-6xl p-6">
+        
+        {/* Added padding and max-width to prevent "hitting the edges" */}
+        <main className="mx-auto w-full px-4 sm:px-6 lg:px-8">
           {children}
         </main>
       </body>
     </html>
-  );
+  )
 }

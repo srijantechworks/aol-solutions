@@ -191,7 +191,10 @@ export default function GeneratorForm() {
 
     return (
         <>
-            <form onSubmit={handleGenerate} noValidate className="w-full max-w-full mx-auto flex flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-700 mt-5 pb-10">
+            <form 
+            onSubmit={handleGenerate} 
+            className="w-full max-w-5xl mx-auto flex flex-col items-center mt-2 pb-10 space-y-6"
+        >
 
                 <div className="flex flex-col lg:flex-row gap-4 w-full items-start">
                     <div className="flex flex-col flex-grow w-full gap-2">
