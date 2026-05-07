@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { LinkIcon, Sparkles, SlidersHorizontal, Info, X, Loader2 } from 'lucide-react';
+import { LinkIcon, Sparkles, SlidersHorizontal, Info, X, Loader2, RefreshCw } from 'lucide-react';
 import { DROPDOWN_OPTIONS } from '@/lib/constants';
 import CustomSelect from '../ui/CustomSelect';
 
@@ -84,7 +84,7 @@ export default function GeneratorForm() {
 
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000);
+            const timeoutId = setTimeout(() => controller.abort(), 300000);
 
             const response = await fetch('/api/generate', {
                 method: 'POST',
@@ -102,7 +102,8 @@ export default function GeneratorForm() {
             } else {
                 // SUCCESS
                 const result = {
-                    eventId: data.eventId,
+                    eventId: data.event_id_val,
+                    messages: data.messages, // <-- CRITICAL: Grab the AI messages!
                     ...data.courseContext
                 };
 
@@ -127,6 +128,22 @@ export default function GeneratorForm() {
             }
             setIsLoading(false);
         }
+    };
+
+    const handleReset = () => {
+        setUrl('');
+        setErrorMsg('');
+        setApiResult(null);
+        setPendingResult(null);
+        setShowAdvanced(false);
+        setSelections({
+            audience: 'none',
+            tone: 'none',
+            length: 'none',
+            benefit: 'none',
+            emoji: 'none',
+        });
+        window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll back to the top!
     };
 
     const handleGenerate = (e: React.FormEvent) => {
@@ -307,18 +324,70 @@ export default function GeneratorForm() {
                 )}
             </form>
 
-            {apiResult && (
-                <div className="w-full max-w-full mx-auto mb-32 animate-in fade-in slide-in-from-bottom-4">
-                    <div className="bg-white border border-green-200 rounded-2xl p-6 md:p-8 shadow-sm">
-                        <div className="flex items-center gap-2 mb-4">
-                            <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
-                            <h3 className="text-lg font-bold text-neutral-900">Successfully Extracted Course Data</h3>
+            {apiResult && apiResult.messages && (
+                <div className="w-full max-w-[1400px] mx-auto mb-32 animate-in fade-in slide-in-from-bottom-4 overflow-hidden">
+                    
+                    {/* Header with Start Over Button */}
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
+                        <div className="flex items-center gap-3">
+                            <Sparkles className="h-6 w-6 text-amber-500" />
+                            <h2 className="text-2xl md:text-3xl font-bold text-neutral-900">Your Generated Messages</h2>
                         </div>
-                        <p className="text-sm text-neutral-600 mb-4">This is the structured data that will be fed to the AI to generate your message.</p>
+                        <button
+                            onClick={handleReset}
+                            className="flex items-center cursor-pointer gap-2 px-5 py-2.5 rounded-xl font-semibold text-neutral-600 bg-white border border-neutral-200 hover:bg-neutral-50 hover:text-neutral-900 transition-all shadow-sm"
+                        >
+                            <RefreshCw className="h-4 w-4" />
+                            Start Over
+                        </button>
+                    </div>
 
-                        <pre className="bg-neutral-50 p-4 rounded-xl text-sm text-neutral-800 overflow-x-auto border border-neutral-200 shadow-inner">
-                            <code>{JSON.stringify(apiResult, null, 2)}</code>
-                        </pre>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {apiResult.messages.map((msg: any, idx: number) => (
+                            <div key={msg.message_id} className="bg-white border border-neutral-200 rounded-3xl p-6 md:p-8 shadow-sm flex flex-col relative hover:shadow-md transition-shadow">
+
+                                {/* Badge Number */}
+                                <div className="absolute -top-4 -left-4 bg-amber-500 text-white w-10 h-10 flex items-center justify-center rounded-full font-bold shadow-md border-4 border-white">
+                                    {idx + 1}
+                                </div>
+
+                                {/* The Actual Message (ADDED break-words TO FIX OVERFLOW) */}
+                                <p className="text-neutral-800 text-lg leading-relaxed whitespace-pre-wrap break-words flex-grow mb-8">
+                                    {msg.message_text}
+                                </p>
+
+                                {/* Action Buttons */}
+                                <div className="flex flex-wrap items-center gap-3 mt-auto pt-5 border-t border-neutral-100">
+                                    <button
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(msg.message_text);
+                                            alert("Copied to clipboard!"); 
+                                        }}
+                                        className="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium py-3 px-4 rounded-xl transition-colors cursor-pointer"
+                                    >
+                                        Copy Text
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            console.log("Liked:", msg.message_id);
+                                        }}
+                                        className="flex-1 bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium py-3 px-4 rounded-xl transition-colors cursor-pointer"
+                                    >
+                                        👍 Like
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            console.log("Shared:", msg.message_id);
+                                        }}
+                                        className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-3 px-4 rounded-xl transition-colors cursor-pointer"
+                                    >
+                                        📤 Share
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
