@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { LinkIcon, Sparkles, SlidersHorizontal, Info, X, Loader2, RefreshCw } from 'lucide-react';
+import { LinkIcon, Sparkles, SlidersHorizontal, Info, X, Loader2, RefreshCw, Heart, Share2, Copy, Check } from 'lucide-react';
 import { DROPDOWN_OPTIONS } from '@/lib/constants';
 import CustomSelect from '../ui/CustomSelect';
 
@@ -11,6 +11,10 @@ export default function GeneratorForm() {
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     const [showModal, setShowModal] = useState(false);
+    const [toastMsg, setToastMsg] = useState<string | null>(null);
+    const [likedMessageId, setLikedMessageId] = useState<string | null>(null);
+    const [shareModalMsg, setShareModalMsg] = useState<any>(null);
+    const [isEngaging, setIsEngaging] = useState<{ [key: string]: boolean }>({});
 
     const [isLoading, setIsLoading] = useState(false);
     const [apiResult, setApiResult] = useState<any>(null);
@@ -66,6 +70,45 @@ export default function GeneratorForm() {
 
     const handleSelectChange = (key: string, value: string) => {
         setSelections((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const handleEngagement = async (action: 'copy' | 'like' | 'share', msg: any) => {
+        // Prevent spam clicking
+        if (isEngaging[`${action}-${msg.message_id}`]) return;
+
+        // Set UI loading state for this specific button
+        setIsEngaging(prev => ({ ...prev, [`${action}-${msg.message_id}`]: true }));
+
+        try {
+            // Trigger UI Effects Immediately for snappy UX
+            if (action === 'copy') {
+                navigator.clipboard.writeText(msg.message_text);
+                setToastMsg("Message copied to clipboard! ✨");
+                setTimeout(() => setToastMsg(null), 3000);
+            }
+            else if (action === 'like') {
+                setLikedMessageId(msg.message_id);
+                // Remove the floating heart after 1.5s
+                setTimeout(() => setLikedMessageId(null), 1500);
+            }
+
+            // Send silently to database
+            await fetch('/api/engage', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    eventId: apiResult.eventId,
+                    courseLabel: apiResult.course_event_type_label || apiResult.event_name || apiResult.course_name || 'AOL Course',
+                    messageData: msg,
+                    action: action
+                })
+            });
+
+        } catch (error) {
+            console.error("Engagement tracking failed", error);
+        } finally {
+            setIsEngaging(prev => ({ ...prev, [`${action}-${msg.message_id}`]: false }));
+        }
     };
 
     // ==========================================
@@ -334,7 +377,7 @@ export default function GeneratorForm() {
             </form>
 
             {apiResult && apiResult.messages && (
-                <div className="w-full max-w-[1400px] mx-auto mb-32 animate-in fade-in slide-in-from-bottom-4 overflow-hidden">
+                <div className="w-full max-w-[1400px] mx-auto mb-32 animate-in fade-in slide-in-from-bottom-4 px-6">
 
                     {/* Header with Start Over Button */}
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
@@ -368,32 +411,38 @@ export default function GeneratorForm() {
 
                                 {/* Action Buttons - Made slightly more transparent to match */}
                                 <div className="flex flex-wrap items-center gap-3 mt-auto pt-5 border-t border-white/30">
+                                    {/* COPY BUTTON */}
                                     <button
-                                        onClick={() => {
-                                            navigator.clipboard.writeText(msg.message_text);
-                                            alert("Copied to clipboard!");
-                                        }}
-                                        className="flex-1 bg-white/50 hover:bg-white/70 text-neutral-900 font-bold py-3 px-4 rounded-xl transition-colors cursor-pointer shadow-sm backdrop-blur-sm"
+                                        onClick={() => handleEngagement('copy', msg)}
+                                        className="flex-1 flex justify-center items-center gap-2 bg-white/50 hover:bg-white/70 text-neutral-900 font-bold py-3 px-4 rounded-xl transition-colors cursor-pointer shadow-sm backdrop-blur-sm"
                                     >
-                                        Copy Text
+                                        <Copy className="h-4 w-4" /> Copy
                                     </button>
 
-                                    <button
-                                        onClick={() => {
-                                            console.log("Liked:", msg.message_id);
-                                        }}
-                                        className="flex-1 bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium py-3 px-4 rounded-xl transition-colors cursor-pointer"
-                                    >
-                                        👍 Like
-                                    </button>
+                                    {/* LIKE BUTTON (With floating heart animation) */}
+                                    <div className="flex-1 relative">
+                                        <button
+                                            onClick={() => handleEngagement('like', msg)}
+                                            className="w-full flex justify-center items-center gap-2 bg-white/50 hover:bg-white/70 text-amber-700 font-bold py-3 px-4 rounded-xl transition-colors cursor-pointer shadow-sm backdrop-blur-sm"
+                                        >
+                                            <Heart className={`h-4 w-4 ${likedMessageId === msg.message_id ? 'fill-red-500 text-red-500 animate-pulse' : ''}`} />
+                                            Like
+                                        </button>
 
+                                        {/* Beautiful floating heart animation */}
+                                        {likedMessageId === msg.message_id && (
+                                            <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 pointer-events-none animate-in fade-in slide-in-from-bottom-8 zoom-in duration-700">
+                                                <Heart className="h-12 w-12 text-red-500 fill-red-500 drop-shadow-lg" />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* SHARE BUTTON */}
                                     <button
-                                        onClick={() => {
-                                            console.log("Shared:", msg.message_id);
-                                        }}
-                                        className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-3 px-4 rounded-xl transition-colors cursor-pointer"
+                                        onClick={() => setShareModalMsg(msg)}
+                                        className="flex-1 flex justify-center items-center gap-2 bg-white/50 hover:bg-white/70 text-blue-700 font-bold py-3 px-4 rounded-xl transition-colors cursor-pointer shadow-sm backdrop-blur-sm"
                                     >
-                                        📤 Share
+                                        <Share2 className="h-4 w-4" /> Share
                                     </button>
                                 </div>
                             </div>
@@ -442,6 +491,57 @@ export default function GeneratorForm() {
                                 Continue with Defaults
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ==========================================
+                SHARE MODAL
+            ========================================== */}
+            {shareModalMsg && (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-neutral-900/60 backdrop-blur-sm animate-in fade-in duration-200 p-4">
+                    <div className="relative bg-white/90 backdrop-blur-xl border border-white/50 rounded-3xl shadow-2xl w-full max-w-sm p-6 animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-300">
+                        <button
+                            onClick={() => setShareModalMsg(null)}
+                            className="absolute top-4 right-4 p-2 text-neutral-500 hover:text-black hover:bg-neutral-200/50 rounded-full transition-colors cursor-pointer"
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
+
+                        <h3 className="text-xl font-bold text-neutral-900 mb-6 text-center">Share Message</h3>
+
+                        <div className="grid grid-cols-3 gap-4">
+                            <button onClick={() => { handleEngagement('share', shareModalMsg); setShareModalMsg(null); }} className="flex flex-col items-center gap-2 group cursor-pointer">
+                                <div className="h-14 w-14 rounded-full bg-green-100 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                                    <svg className="w-7 h-7 text-green-600" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" /></svg>
+                                </div>
+                                <span className="text-xs font-semibold text-neutral-700">WhatsApp</span>
+                            </button>
+                            <button onClick={() => { handleEngagement('share', shareModalMsg); setShareModalMsg(null); }} className="flex flex-col items-center gap-2 group cursor-pointer">
+                                <div className="h-14 w-14 rounded-full bg-blue-100 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                                    <svg className="w-7 h-7 text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 24c6.627 0 12-5.373 12-12S18.627 0 12 0 0 5.373 0 12s5.373 12 12 12zM5.882 12.883l3.525 1.254 1.158 3.522c.115.35.602.378.756.044l1.192-2.584 3.73 2.766c.264.195.632.062.688-.26l2.336-13.626c.074-.432-.387-.77-.788-.57L5.617 11.666c-.43.214-.378.847.265 1.217z" /></svg>
+                                </div>
+                                <span className="text-xs font-semibold text-neutral-700">Telegram</span>
+                            </button>
+                            <button onClick={() => { handleEngagement('share', shareModalMsg); setShareModalMsg(null); }} className="flex flex-col items-center gap-2 group cursor-pointer">
+                                <div className="h-14 w-14 rounded-full bg-neutral-800 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                                    <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
+                                </div>
+                                <span className="text-xs font-semibold text-neutral-700">X (Twitter)</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ==========================================
+                SUCCESS TOAST NOTIFICATION
+            ========================================== */}
+            {toastMsg && (
+                <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
+                    <div className="bg-neutral-200/90 backdrop-blur-md text-black px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5 duration-300">
+                        <Check className="h-5 w-5 text-green-500" />
+                        <span className="font-medium text-sm md:text-base">{toastMsg}</span>
                     </div>
                 </div>
             )}
