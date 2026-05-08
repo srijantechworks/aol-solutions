@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
         let urlObj: URL;
         try {
-            urlObj = new URL(url);
+            urlObj = new URL(parsedUrlString);
         } catch (e) {
             return NextResponse.json({ error: 'Please provide a valid Art of Living course link' }, { status: 400 });
         }
