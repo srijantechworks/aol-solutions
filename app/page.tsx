@@ -3,7 +3,7 @@ import GeneratorForm from '@/components/features/GeneratorForm';
 
 export default function Home() {
   return (
-    <div className="mt-10 flex flex-col items-center justify-center text-center pb-20">
+    <div className="mt-20 flex flex-col items-center justify-center text-center pb-20">
       {/* Updated: Dark gray heading */}
       <h1 className="text-4xl font-extrabold tracking-tight text-neutral-900 sm:text-5xl">
         Create Course Messages
