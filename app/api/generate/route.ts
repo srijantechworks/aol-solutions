@@ -24,9 +24,15 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'A valid URL is required.' }, { status: 400 });
         }
 
+        // ✨ NEW: Auto-prepend https:// if the user forgot it (e.g., "google.com")
+        let parsedUrlString = url.trim();
+        if (!/^https?:\/\//i.test(parsedUrlString)) {
+            parsedUrlString = 'https://' + parsedUrlString;
+        }
+
         let urlObj: URL;
         try {
-            urlObj = new URL(url);
+            urlObj = new URL(parsedUrlString);
         } catch (e) {
             return NextResponse.json({ error: 'Please provide a valid Art of Living course link' }, { status: 400 });
         }

@@ -2,15 +2,15 @@ export default function AboutPage() {
   return (
     <div className="max-w-5xl mx-auto px-6 py-6 md:py-10 text-neutral-800">
       <div className="text-center mb-16">
-        <h1 className="text-4xl md:text-5xl font-bold text-neutral-900 mb-6">About Srijan</h1>
-        <p className="text-lg md:text-xl text-neutral-600">
+        <h1 className="text-4xl md:text-5xl font-bold text-neutral-300 mb-6">About Srijan</h1>
+        <p className="text-lg md:text-xl text-neutral-300">
           Empowering The Art of Living Foundation teachers with AI-driven tools.
         </p>
       </div>
 
-      <div className="space-y-12 leading-relaxed">
+      <div className="space-y-12 leading-relaxed text-neutral-300">
         <section>
-          <h2 className="text-2xl font-bold text-neutral-900 mb-4">Our Vision</h2>
+          <h2 className="text-2xl font-bold text-neutral-300 mb-4">Our Vision</h2>
           <p className="mb-4">
             Our vision is to empower The Art of Living Foundation teachers with AI-driven tools that simplify outreach, support course promotion, and make communication feel authentic and effortless.
           </p>
@@ -20,11 +20,11 @@ export default function AboutPage() {
         </section>
 
         <section>
-          <h2 className="text-2xl font-bold text-neutral-900 mb-4">Why We Built This</h2>
+          <h2 className="text-2xl font-bold text-neutral-300 mb-4">Why We Built This</h2>
           <p className="mb-4">
             Teachers and volunteers at The Art of Living Foundation dedicate their time and energy to transforming lives through programs, service, and human connection. However, promoting courses and creating communication content — emails, social posts, and event updates — often takes significant time and effort.
           </p>
-          <p className="mb-4 font-semibold text-neutral-900">
+          <p className="mb-4 font-semibold text-neutral-300">
             We built Srijan to simplify this process.
           </p>
           <p className="mb-4">
@@ -36,7 +36,7 @@ export default function AboutPage() {
         </section>
 
         <section>
-          <h2 className="text-2xl font-bold text-neutral-900 mb-4">About Us</h2>
+          <h2 className="text-2xl font-bold text-neutral-300 mb-4">About Us</h2>
           <p className="mb-4">
             Srijan is built by a team with strong experience in technology, AI, and digital products, along with a long-standing connection to the The Art of Living Foundation community.
           </p>
@@ -46,7 +46,7 @@ export default function AboutPage() {
         </section>
       </div>
 
-      <div className="mt-16 pt-8 border-t border-neutral-300 text-sm text-neutral-500 italic">
+      <div className="mt-16 pt-8 border-t border-neutral-300 text-sm text-neutral-200 italic">
         <p>
           *Disclaimer: Srijan is an independent technology initiative created to support teachers and volunteers through AI-powered communication tools. References to The Art of Living Foundation are made only to describe the community the platform is designed to serve.
         </p>
