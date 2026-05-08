@@ -191,10 +191,10 @@ export default function GeneratorForm() {
 
     return (
         <>
-            <form 
-            onSubmit={handleGenerate} 
-            className="w-full max-w-5xl mx-auto flex flex-col items-center mt-2 pb-10 space-y-6"
-        >
+            <form
+                onSubmit={handleGenerate}
+                className="w-full max-w-6xl mx-auto flex flex-col items-center pb-10 space-y-6"
+            >
 
                 <div className="flex flex-col lg:flex-row gap-4 w-full items-start">
                     <div className="flex flex-col flex-grow w-full gap-2">
@@ -203,7 +203,7 @@ export default function GeneratorForm() {
                                 <LinkIcon className="h-5 w-5" />
                             </div>
                             <input
-                                type="url"
+                                type="text"
                                 value={url}
                                 disabled={isLoading}
                                 onChange={(e) => {
@@ -219,9 +219,12 @@ export default function GeneratorForm() {
                         </div>
 
                         {errorMsg && (
-                            <div className="w-full  text-red-700 px-4 py-2 flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-                                <Info className="h-6 w-6 text-red-500 shrink-0" />
-                                <span className="font-semibold text-base md:text-lg">{errorMsg}</span>
+                            // ✨ RED FROSTED GLASS ERROR PILL ✨
+                            <div className="w-full bg-red-700/40 border border-red-500/50 backdrop-blur-md rounded-xl px-4 py-3 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 shadow-lg">
+                                <Info className="h-5 w-5 text-red-400 shrink-0" />
+                                <span className="font-medium text-red-50 text-base md:text-lg">
+                                    {errorMsg}
+                                </span>
                             </div>
                         )}
                     </div>
@@ -279,19 +282,22 @@ export default function GeneratorForm() {
                 </div>
 
                 {showAdvanced && (
-                    <div className="w-full mt-8 bg-white/80 border border-neutral-200 rounded-2xl p-6 md:p-8 animate-in fade-in slide-in-from-top-4 duration-300 shadow-sm backdrop-blur-sm">
+                    // ✨ GLASSMORPHISM APPLIED HERE ✨
+                    <div className="w-full mt-8 bg-white/40 border border-white/30 rounded-3xl p-6 md:p-8 animate-in fade-in slide-in-from-top-4 duration-300 shadow-xl backdrop-blur-sm">
                         <div className="text-left mb-6">
                             <h2 className="text-xl font-bold text-neutral-900">Tailor Your Message</h2>
-                            <p className="text-sm text-neutral-600 mt-1">Fine-tune the AI's context. Leave as "None" for default generation.</p>
+                            <p className="text-sm text-neutral-800 mt-1">Fine-tune the AI's context. Leave as "None" for default generation.</p>
 
-                            <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3 items-start shadow-sm">
-                                <Info className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                                <p className="text-sm text-amber-900">
-                                    <span className="font-bold text-amber-950">Note: </span>
+                            {/* Slightly adjusted the info box to match the new glass theme */}
+                            <div className="mt-4 bg-white/40 border border-white/50 rounded-xl p-4 flex gap-3 items-start shadow-sm backdrop-blur-sm">
+                                <Info className="h-5 w-5 text-neutral-800 shrink-0 mt-0.5" />
+                                <p className="text-sm text-neutral-900">
+                                    <span className="font-bold">Note: </span>
                                     If you close this options panel, your selections will be reset to "None". Keep the panel open while clicking "Create Message" to apply these settings.
                                 </p>
                             </div>
                         </div>
+                        {/* ... rest of the selects and button ... */}
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 text-left">
                             <CustomSelect label="Target Audience" options={DROPDOWN_OPTIONS.audiences} value={selections.audience} onChange={(val) => handleSelectChange('audience', val)} />
@@ -329,7 +335,7 @@ export default function GeneratorForm() {
 
             {apiResult && apiResult.messages && (
                 <div className="w-full max-w-[1400px] mx-auto mb-32 animate-in fade-in slide-in-from-bottom-4 overflow-hidden">
-                    
+
                     {/* Header with Start Over Button */}
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
                         <div className="flex items-center gap-3">
@@ -347,26 +353,27 @@ export default function GeneratorForm() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {apiResult.messages.map((msg: any, idx: number) => (
-                            <div key={msg.message_id} className="bg-white border border-neutral-200 rounded-3xl p-6 md:p-8 shadow-sm flex flex-col relative hover:shadow-md transition-shadow">
+                            // ✨ GLASSMORPHISM APPLIED HERE ✨
+                            <div key={msg.message_id} className="bg-white/40 backdrop-blur-sm border border-white/30 rounded-3xl p-6 md:p-8 shadow-xl flex flex-col relative hover:shadow-2xl transition-all">
 
-                                {/* Badge Number */}
-                                <div className="absolute -top-4 -left-4 bg-amber-500 text-white w-10 h-10 flex items-center justify-center rounded-full font-bold shadow-md border-4 border-white">
+                                {/* Badge Number (Optional: you can change bg-amber-500 to bg-neutral-900 if you want to drop amber entirely) */}
+                                <div className="absolute -top-4 -left-4 bg-amber-500 text-white w-10 h-10 flex items-center justify-center rounded-full font-bold shadow-md border-4 border-white/50">
                                     {idx + 1}
                                 </div>
 
-                                {/* The Actual Message (ADDED break-words TO FIX OVERFLOW) */}
-                                <p className="text-neutral-800 text-lg leading-relaxed whitespace-pre-wrap break-words flex-grow mb-8">
+                                {/* The Actual Message */}
+                                <p className="text-neutral-900 font-medium text-lg leading-relaxed whitespace-pre-wrap break-words flex-grow mb-8">
                                     {msg.message_text}
                                 </p>
 
-                                {/* Action Buttons */}
-                                <div className="flex flex-wrap items-center gap-3 mt-auto pt-5 border-t border-neutral-100">
+                                {/* Action Buttons - Made slightly more transparent to match */}
+                                <div className="flex flex-wrap items-center gap-3 mt-auto pt-5 border-t border-white/30">
                                     <button
                                         onClick={() => {
                                             navigator.clipboard.writeText(msg.message_text);
-                                            alert("Copied to clipboard!"); 
+                                            alert("Copied to clipboard!");
                                         }}
-                                        className="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium py-3 px-4 rounded-xl transition-colors cursor-pointer"
+                                        className="flex-1 bg-white/50 hover:bg-white/70 text-neutral-900 font-bold py-3 px-4 rounded-xl transition-colors cursor-pointer shadow-sm backdrop-blur-sm"
                                     >
                                         Copy Text
                                     </button>
