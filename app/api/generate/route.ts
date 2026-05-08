@@ -520,28 +520,37 @@ REMEMBER: Return ONLY this JSON array. Nothing else. No markdown code blocks. No
         }
 
         // ==========================================
-        // 10. Parse AI JSON Response
+        // 10. Parse AI JSON Response (Bulletproof Version)
         // ==========================================
         let generatedMessages: any[] = [];
 
         try {
-            // Strip any accidental markdown or leading/trailing text
-            const cleanJson = rawOutput
-                .replace(/```json\n?/gi, '')
-                .replace(/```\n?/g, '')
-                .trim();
+            if (!rawOutput || rawOutput.trim() === '') {
+                throw new Error("AI returned an empty response.");
+            }
 
-            // Find the JSON array even if LLM added text around it
-            const jsonMatch = cleanJson.match(/\[[\s\S]*\]/);
-            if (!jsonMatch) throw new Error('No JSON array found in LLM response');
+            // 1. Find the absolute first '[' and absolute last ']'
+            const startIndex = rawOutput.indexOf('[');
+            const endIndex = rawOutput.lastIndexOf(']');
 
-            const parsed = JSON.parse(jsonMatch[0]);
+            if (startIndex === -1 || endIndex === -1) {
+                throw new Error('No JSON array brackets found in LLM response');
+            }
+
+            // 2. Extract ONLY the string between those brackets (ignoring any conversational text)
+            let cleanJson = rawOutput.substring(startIndex, endIndex + 1);
+
+            // 3. Optional safeguard: Remove common markdown code block ticks if the AI shoved them inside the brackets
+            cleanJson = cleanJson.replace(/```json/gi, '').replace(/```/g, '');
+
+            // 4. Parse the clean string
+            const parsed = JSON.parse(cleanJson);
 
             if (!Array.isArray(parsed) || parsed.length === 0) {
                 throw new Error('Parsed result is not a non-empty array');
             }
 
-            // Validate each message has required fields
+            // 5. Validate that the required text field exists
             generatedMessages = parsed.map((msg: any, i: number) => {
                 if (!msg.text || typeof msg.text !== 'string') {
                     throw new Error(`Message ${i + 1} missing text field`);
@@ -550,14 +559,15 @@ REMEMBER: Return ONLY this JSON array. Nothing else. No markdown code blocks. No
             });
 
         } catch (e: any) {
-            console.error('[Copywriter] JSON parse failed:', e.message);
-            console.error('[Copywriter] Raw output was:', rawOutput.slice(0, 500));
+            // ✨ We log the EXACT raw output to your terminal so we can see how the AI messed up!
+            console.error('\n=====================================');
+            console.error('🚨 [Copywriter] JSON PARSE FAILED 🚨');
+            console.error('Error:', e.message);
+            console.error('RAW AI OUTPUT:\n', rawOutput);
+            console.error('=====================================\n');
 
             return NextResponse.json({
                 error: "AI failed to format response correctly. Please try again.",
-                debug: process.env.NODE_ENV === 'development'
-                    ? rawOutput.slice(0, 300)
-                    : undefined,
             }, { status: 500 });
         }
 
