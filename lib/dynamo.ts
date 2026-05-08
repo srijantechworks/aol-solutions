@@ -1,13 +1,13 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, UpdateCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, UpdateCommand, QueryCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 
 // Initialize the DynamoDB Client
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 const docClient = DynamoDBDocumentClient.from(client);
 
 // Define your table names
-const STORE_TABLE = process.env.DYNAMO_STORE_TABLE || 'aol_event_message_store';
-const MEMORY_TABLE = process.env.DYNAMO_MEMORY_TABLE || 'aol_message_engagement_memory';
+const STORE_TABLE = process.env.DYNAMODB_EVENTS_TABLE || 'aol_event_message_store';
+const MEMORY_TABLE = process.env.DYNAMODB_RAG_TABLE || 'aol_message_engagement_memory';
 
 /**
  * 1. Gatekeeper: Check how many times this event has generated messages
@@ -66,12 +66,77 @@ export async function fetchCourseMemory(courseName: string) {
             ExpressionAttributeValues: {
                 ":pk": `EVENTTYPE#${courseName}`
             },
-            Limit: 5 
+            Limit: 5
         });
         const response = await docClient.send(command);
         return response.Items || [];
     } catch (error) {
         console.error("DynamoDB Fetch Memory Error:", error);
         return [];
+    }
+}
+
+export async function recordEngagement(
+    eventId: string, 
+    messageData: any, 
+    action: 'copy' | 'like' | 'share'
+) {
+    try {
+        // 1. Hall of Fame Memory Table (Upsert Logic)
+        if (action === 'like' || action === 'share') {
+            const memoryPK = `MEMORY#EVENT#${eventId}`;
+            const memorySK = `MESSAGE#${messageData.message_id}`; // Stable ID prevents duplicates
+
+            await docClient.send(new UpdateCommand({
+                TableName: process.env.DYNAMODB_MEMORY_TABLE || 'aol_message_engagement_memory',
+                Key: { PK: memoryPK, SK: memorySK },
+                UpdateExpression: `
+                    SET message_id = :msgId,
+                        message_text = :text,
+                        hook = :hook,
+                        angle = :angle,
+                        last_engaged_at = :time,
+                        actions_taken = list_append(if_not_exists(actions_taken, :emptyList), :newAction)
+                `,
+                ExpressionAttributeValues: {
+                    ":msgId": messageData.message_id,
+                    ":text": messageData.message_text,
+                    ":hook": messageData.hook || '',
+                    ":angle": messageData.angle || '',
+                    ":time": new Date().toISOString(),
+                    ":emptyList": [],
+                    ":newAction": [action] // Appends the new action to the array
+                }
+            }));
+        }
+
+        // 2. Increment the Counter in the Event Store
+        const getResponse = await docClient.send(new GetCommand({
+            TableName: process.env.DYNAMODB_STORE_TABLE || 'aol_event_message_store',
+            Key: { PK: `EVENT#${eventId}` }
+        }));
+
+        const item = getResponse.Item;
+        if (item && item.engaged_messages) {
+            const messageIndex = item.engaged_messages.findIndex(
+                (m: any) => m.message_id === messageData.message_id
+            );
+
+            if (messageIndex !== -1) {
+                const countField = action === 'copy' ? 'copy_count' : 
+                                   action === 'like' ? 'like_count' : 'share_count';
+
+                await docClient.send(new UpdateCommand({
+                    TableName: process.env.DYNAMODB_STORE_TABLE || 'aol_event_message_store',
+                    Key: { PK: `EVENT#${eventId}` },
+                    UpdateExpression: `SET engaged_messages[${messageIndex}].${countField} = engaged_messages[${messageIndex}].${countField} + :inc`,
+                    ExpressionAttributeValues: { ":inc": 1 }
+                }));
+            }
+        }
+        return true;
+    } catch (error) {
+        console.error(`DynamoDB Engagement Error (${action}):`, error);
+        return false;
     }
 }

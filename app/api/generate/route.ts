@@ -493,6 +493,8 @@ REQUIRED OUTPUT FORMAT (copy this schema exactly)
   }
 ]
 
+Note: The message should be WhatsApp-friendly, Telegram-friendly, X-friendly, Email-friendly with short lines and line breaks, not a wall of text.Basically it should be formatted in a way that can be easily copy-pasted into all probable sharing platforms without losing readability.
+
 REMEMBER: Return ONLY this JSON array. Nothing else. No markdown code blocks. No explanation. Just the raw JSON.
 `;
 
