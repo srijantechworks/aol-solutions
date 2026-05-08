@@ -6,57 +6,69 @@ import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { MessageSquare, Image as ImageIcon, BookOpen, Infinity as InfinityIcon, Users, PanelLeftClose, PanelLeftOpen, Plus } from 'lucide-react';
 
-export default function Navigation({ children }: { children: React.ReactNode }) {
-    const [isCollapsed, setIsCollapsed] = useState(false); 
+export default function Navigation({ children, initialCollapsed = false }: { children: React.ReactNode, initialCollapsed?: boolean; }) {
+    const [isCollapsed, setIsCollapsed] = useState(initialCollapsed); // always false on server
+    const [isReady, setIsReady] = useState(false);
     const [isHoveringLogo, setIsHoveringLogo] = useState(false);
-    const [isMounted, setIsMounted] = useState(false); 
+    // const [isMounted, setIsMounted] = useState(false);
     const pathname = usePathname();
 
     // ✨ FIX 3: Load saved sidebar state from localStorage on mount
-    useEffect(() => {
-        setIsMounted(true);
-        const savedState = localStorage.getItem('srijan_sidebar_state');
-        if (savedState !== null) {
-            setIsCollapsed(JSON.parse(savedState));
-        }
-    }, []);
+    // useEffect(() => {
+    //     const saved = localStorage.getItem('srijan_sidebar_state');
+    //     if (saved !== null) {
+    //         setIsCollapsed(JSON.parse(saved));
+    //     }
+    //     setIsReady(true); // only NOW enable transitions
+    // }, []);
 
     // ✨ FIX 3: Function to toggle and save state simultaneously
     const toggleSidebar = (state: boolean) => {
         setIsCollapsed(state);
-        localStorage.setItem('srijan_sidebar_state', JSON.stringify(state));
+        document.cookie = `srijan_sidebar_state=${state}; path=/; max-age=31536000`;
     };
 
     const navItems = [
         { name: 'Generate Posters', href: '#', icon: ImageIcon, comingSoon: true },
         { name: 'Knowledge Sheet', href: '/knowledge', icon: BookOpen, comingSoon: false },
-        { name: 'Whispering Infinity', href: '/whispers', icon: InfinityIcon, comingSoon: false },
+        // Mobile only
+        {
+            name: 'Whispering Infinity',
+            href: 'whisperinginfinity://open',
+            fallback:
+                'https://play.google.com/store/search?q=whispering+infinity&c=apps&hl=en_IN&pli=1',
+            icon: InfinityIcon,
+            comingSoon: false,
+            mobileOnly: true,
+        },
         { name: 'Open CRM', href: '/crm', icon: Users, comingSoon: false },
     ];
 
     // Don't render complex dynamic sizing until mounted to prevent UI flashes
-    if (!isMounted) return null; 
+    // if (!isMounted) return null;
 
     return (
-        <div className="flex w-full h-full relative z-10">
-            
+        <div className="flex w-full h-dvh overflow-hidden relative z-10">
+
             {/* ==========================================
                 DESKTOP SIDEBAR 
             ========================================== */}
-            <aside 
-                className={`hidden md:flex flex-col h-full bg-white/30 backdrop-blur-sm border-r border-white/5 transition-all duration-300 ease-in-out shrink-0
-                ${isCollapsed ? 'w-[64px]' : 'w-[250px]'}`}
+            <aside
+                className={`hidden md:flex flex-col min-h-screen bg-white/30 backdrop-blur-sm 
+        border-r border-white/5 shrink-0
+        ${isReady ? 'transition-all duration-300 ease-in-out' : 'transition-none'}
+        ${isCollapsed ? 'w-[64px]' : 'w-[250px]'}`}
             >
                 {/* Top Section: Logo & Toggle Area */}
                 {/* ✨ FIX 1: Removed border-b border-white/20 */}
-                <div 
+                <div
                     className="h-[76px] flex items-center justify-center shrink-0 transition-colors"
                     onMouseEnter={() => setIsHoveringLogo(true)}
                     onMouseLeave={() => setIsHoveringLogo(false)}
                 >
                     {isCollapsed ? (
-                        <button 
-                            onClick={() => toggleSidebar(false)} 
+                        <button
+                            onClick={() => toggleSidebar(false)}
                             className="w-full h-full flex justify-center items-center hover:bg-white/20 transition-all cursor-pointer"
                             title="Expand sidebar"
                         >
@@ -70,8 +82,8 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
                     ) : (
                         <div className="flex items-center justify-between w-full px-4 h-full">
                             <Image src="/srijan-logo.png" width={40} height={40} className="rounded-full shadow-md" alt="Srijan Logo" />
-                            <button 
-                                onClick={() => toggleSidebar(true)} 
+                            <button
+                                onClick={() => toggleSidebar(true)}
                                 className="p-2 hover:bg-white/40 rounded-lg transition-colors text-neutral-900 cursor-pointer"
                                 title="Collapse sidebar"
                             >
@@ -99,7 +111,7 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
 
                 {/* Scrollable Links List */}
                 <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
-                    {navItems.map((item) => {
+                    {navItems.filter((item) => !item.mobileOnly).map((item) => {
                         const isActive = pathname === item.href;
                         const Icon = item.icon;
 
@@ -107,22 +119,45 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
                             <Link
                                 key={item.name}
                                 href={item.comingSoon ? '#' : item.href}
-                                onClick={(e) => item.comingSoon && e.preventDefault()}
+                                onClick={(e) => {
+                                    if (item.comingSoon) {
+                                        e.preventDefault();
+                                        return;
+                                    }
+
+                                    // Deep link handling for Whispering Infinity
+                                    if (item.name === 'Whispering Infinity') {
+                                        e.preventDefault();
+
+                                        const appUrl = item.href;
+                                        const fallbackUrl =
+                                            item.fallback ??
+                                            'https://play.google.com/store/search?q=whispering+infinity&c=apps&hl=en_IN&pli=1';
+
+                                        // Attempt app open
+                                        window.location.href = appUrl;
+
+                                        // Fallback to Play Store if app not installed
+                                        setTimeout(() => {
+                                            window.location.href = fallbackUrl;
+                                        }, 1500);
+                                    }
+                                }}
                                 // ✨ FIX 2: Darkened inactive text to neutral-900 and increased font weights globally
                                 className={`flex items-center gap-3 rounded-xl transition-all text-sm font-bold
                                     ${isCollapsed ? 'justify-center p-3' : 'px-3 py-3'}
-                                    ${isActive && !item.comingSoon 
-                                        ? 'bg-amber-600 text-white shadow-md' 
-                                        : item.comingSoon 
-                                            ? 'opacity-60 text-neutral-700 cursor-default font-semibold' 
+                                    ${isActive && !item.comingSoon
+                                        ? 'bg-amber-600 text-white shadow-md'
+                                        : item.comingSoon
+                                            ? 'opacity-60 text-neutral-700 cursor-default font-semibold'
                                             : 'text-neutral-900 hover:bg-white/50 cursor-pointer'
                                     }
                                 `}
-                                title={isCollapsed ? item.name : ''} 
+                                title={isCollapsed ? item.name : ''}
                             >
                                 {/* Icons adjust size and stroke depending on collapsed/active state */}
                                 <Icon size={isCollapsed ? 24 : 20} strokeWidth={isActive ? 2.5 : 2} className="shrink-0" />
-                                
+
                                 {!isCollapsed && (
                                     <span className="flex-1 whitespace-nowrap overflow-hidden text-ellipsis">
                                         {item.name}
@@ -153,9 +188,8 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
                                 key={item.name}
                                 href={item.comingSoon ? '#' : item.href}
                                 onClick={(e) => item.comingSoon && e.preventDefault()}
-                                className={`flex flex-col items-center gap-1 p-2 rounded-xl min-w-[4rem] transition-all relative ${
-                                    item.comingSoon ? 'opacity-50 cursor-default' : 'hover:bg-white/20'
-                                }`}
+                                className={`flex flex-col items-center gap-1 p-2 rounded-xl min-w-[4rem] transition-all relative ${item.comingSoon ? 'opacity-50 cursor-default' : 'hover:bg-white/20'
+                                    }`}
                             >
                                 {isActive && !item.comingSoon && (
                                     <div className="absolute inset-0 bg-amber-500/20 rounded-xl -z-10" />
@@ -173,7 +207,7 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
             {/* ==========================================
                 MAIN CONTENT (Slides with Sidebar)
             ========================================== */}
-            <main className="flex-1 h-full overflow-y-auto scroll-smooth">
+            <main className="flex-1 h-dvh overflow-y-auto scroll-smooth pb-24 md:pb-0">
                 {children}
             </main>
         </div>
