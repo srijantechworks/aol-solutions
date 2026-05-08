@@ -5,13 +5,14 @@ import { recordEngagement } from '@/lib/dynamo';
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { eventId, messageData, action } = body;
+        const { eventId, courseLabel, messageData, action } = body;
 
         if (!eventId || !messageData || !action) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        const success = await recordEngagement(eventId, messageData, action);
+        // ✨ NEW: Pass courseLabel to dynamo function ✨
+        const success = await recordEngagement(eventId, courseLabel || 'AOL Course', messageData, action);
 
         if (!success) {
             return NextResponse.json({ error: 'Database update failed' }, { status: 500 });

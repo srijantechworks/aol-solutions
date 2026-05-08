@@ -76,67 +76,120 @@ export async function fetchCourseMemory(courseName: string) {
     }
 }
 
+
 export async function recordEngagement(
     eventId: string, 
+    courseLabel: string, 
     messageData: any, 
     action: 'copy' | 'like' | 'share'
 ) {
+    // ==========================================
+    // 1. HALL OF FAME MEMORY (Table 2 - EVENTTYPE Array Schema)
+    // ==========================================
     try {
-        // 1. Hall of Fame Memory Table (Upsert Logic)
-        if (action === 'like' || action === 'share') {
-            const memoryPK = `MEMORY#EVENT#${eventId}`;
-            const memorySK = `MESSAGE#${messageData.message_id}`; // Stable ID prevents duplicates
+        // Format the PK based on your schema (e.g., "EVENTTYPE#AMP")
+        const safeLabel = (courseLabel || 'DEFAULT').toUpperCase().replace(/\s+/g, '_');
+        const memoryPK = `EVENTTYPE#${safeLabel}`;
 
-            await docClient.send(new UpdateCommand({
-                TableName: process.env.DYNAMODB_MEMORY_TABLE || 'aol_message_engagement_memory',
-                Key: { PK: memoryPK, SK: memorySK },
-                UpdateExpression: `
-                    SET message_id = :msgId,
-                        message_text = :text,
-                        hook = :hook,
-                        angle = :angle,
-                        last_engaged_at = :time,
-                        actions_taken = list_append(if_not_exists(actions_taken, :emptyList), :newAction)
-                `,
-                ExpressionAttributeValues: {
-                    ":msgId": messageData.message_id,
-                    ":text": messageData.message_text,
-                    ":hook": messageData.hook || '',
-                    ":angle": messageData.angle || '',
-                    ":time": new Date().toISOString(),
-                    ":emptyList": [],
-                    ":newAction": [action] // Appends the new action to the array
-                }
-            }));
+        // Step A: Fetch the current document
+        const getMem = await docClient.send(new GetCommand({
+            TableName: process.env.DYNAMODB_MEMORY_TABLE || 'aol_message_engagement_memory',
+            Key: { PK: memoryPK }
+        }));
+
+        // Step B: Create a default structure if it's the very first time this course type is engaged
+        let memItem = getMem.Item || {
+            PK: memoryPK,
+            course_event_type_label: courseLabel,
+            messages: []
+        };
+
+        let memMessages = memItem.messages || [];
+        
+        // Find if this specific message already exists in the Hall of Fame
+        const msgIdx = memMessages.findIndex((m: any) => m.message_id === messageData.message_id);
+
+        if (msgIdx !== -1) {
+            // Update existing message counters safely
+            if (action === 'copy') memMessages[msgIdx].copy_count = (memMessages[msgIdx].copy_count || 0) + 1;
+            if (action === 'like') memMessages[msgIdx].like_count = (memMessages[msgIdx].like_count || 0) + 1;
+            if (action === 'share') memMessages[msgIdx].share_count = (memMessages[msgIdx].share_count || 0) + 1;
+            
+            // Recalculate engagement score (Sum of all actions)
+            memMessages[msgIdx].engagement_score = 
+                (memMessages[msgIdx].like_count || 0) + 
+                (memMessages[msgIdx].share_count || 0) + 
+                (memMessages[msgIdx].copy_count || 0);
+        } else {
+            // Add a brand new message to the array
+            memMessages.push({
+                message_id: messageData.message_id,
+                message_text: messageData.message_text,
+                copy_count: action === 'copy' ? 1 : 0,
+                like_count: action === 'like' ? 1 : 0,
+                share_count: action === 'share' ? 1 : 0,
+                engagement_score: 1, // First action
+                source_event_id: eventId,
+                created_at: new Date().toISOString()
+            });
         }
 
-        // 2. Increment the Counter in the Event Store
+        // Step C: Push the entire updated document back
+        // PutCommand safely overwrites the old document or creates a new one if missing
+        await docClient.send(new PutCommand({
+            TableName: process.env.DYNAMODB_MEMORY_TABLE || 'aol_message_engagement_memory',
+            Item: {
+                ...memItem,
+                messages: memMessages
+            }
+        }));
+        
+        console.log(`✅ Table 2 Memory Updated successfully!`);
+
+    } catch (memoryError) {
+        console.error(`💥 Memory Table 2 Error:`, memoryError);
+    }
+
+    // ==========================================
+    // 2. COUNTERS IN EVENT STORE (Table 1 - EVENT Array Schema)
+    // ==========================================
+    try {
         const getResponse = await docClient.send(new GetCommand({
             TableName: process.env.DYNAMODB_STORE_TABLE || 'aol_event_message_store',
             Key: { PK: `EVENT#${eventId}` }
         }));
 
         const item = getResponse.Item;
+        
         if (item && item.engaged_messages) {
-            const messageIndex = item.engaged_messages.findIndex(
+            const messagesArray = item.engaged_messages;
+            const storeMsgIdx = messagesArray.findIndex(
                 (m: any) => m.message_id === messageData.message_id
             );
 
-            if (messageIndex !== -1) {
-                const countField = action === 'copy' ? 'copy_count' : 
-                                   action === 'like' ? 'like_count' : 'share_count';
+            if (storeMsgIdx !== -1) {
+                // Safe JavaScript Math
+                if (action === 'copy') messagesArray[storeMsgIdx].copy_count = (messagesArray[storeMsgIdx].copy_count || 0) + 1;
+                if (action === 'like') messagesArray[storeMsgIdx].like_count = (messagesArray[storeMsgIdx].like_count || 0) + 1;
+                if (action === 'share') messagesArray[storeMsgIdx].share_count = (messagesArray[storeMsgIdx].share_count || 0) + 1;
 
                 await docClient.send(new UpdateCommand({
                     TableName: process.env.DYNAMODB_STORE_TABLE || 'aol_event_message_store',
                     Key: { PK: `EVENT#${eventId}` },
-                    UpdateExpression: `SET engaged_messages[${messageIndex}].${countField} = engaged_messages[${messageIndex}].${countField} + :inc`,
-                    ExpressionAttributeValues: { ":inc": 1 }
+                    UpdateExpression: `SET engaged_messages = :updatedMessages`,
+                    ExpressionAttributeValues: { 
+                        ":updatedMessages": messagesArray 
+                    }
                 }));
+                
+                console.log(`✅ Table 1 Store Updated successfully!`);
             }
         }
+        
         return true;
-    } catch (error) {
-        console.error(`DynamoDB Engagement Error (${action}):`, error);
+        
+    } catch (storeError) {
+        console.error(`💥 Store Table 1 Error:`, storeError);
         return false;
     }
 }

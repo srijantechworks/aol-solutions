@@ -98,6 +98,7 @@ export default function GeneratorForm() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     eventId: apiResult.eventId,
+                    courseLabel: apiResult.course_event_type_label || apiResult.event_name || apiResult.course_name || 'AOL Course',
                     messageData: msg,
                     action: action
                 })
@@ -538,7 +539,7 @@ export default function GeneratorForm() {
             ========================================== */}
             {toastMsg && (
                 <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
-                    <div className="bg-neutral-200/90 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5 duration-300">
+                    <div className="bg-neutral-200/90 backdrop-blur-md text-black px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5 duration-300">
                         <Check className="h-5 w-5 text-green-500" />
                         <span className="font-medium text-sm md:text-base">{toastMsg}</span>
                     </div>
