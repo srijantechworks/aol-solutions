@@ -7,9 +7,9 @@ import Image from 'next/image';
 import { MessageSquare, Image as ImageIcon, BookOpen, Infinity as InfinityIcon, Users, PanelLeftClose, PanelLeftOpen, Plus } from 'lucide-react';
 
 export default function Navigation({ children }: { children: React.ReactNode }) {
-    const [isCollapsed, setIsCollapsed] = useState(true);
+    const [isCollapsed, setIsCollapsed] = useState(false); 
     const [isHoveringLogo, setIsHoveringLogo] = useState(false);
-    const [isMounted, setIsMounted] = useState(false); // Used to prevent hydration errors
+    const [isMounted, setIsMounted] = useState(false); 
     const pathname = usePathname();
 
     // ✨ FIX 3: Load saved sidebar state from localStorage on mount
@@ -45,7 +45,7 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
             ========================================== */}
             <aside 
                 className={`hidden md:flex flex-col h-full bg-white/30 backdrop-blur-sm border-r border-white/5 transition-all duration-300 ease-in-out shrink-0
-                ${isCollapsed ? 'w-[64px]' : 'w-[220px]'}`}
+                ${isCollapsed ? 'w-[64px]' : 'w-[250px]'}`}
             >
                 {/* Top Section: Logo & Toggle Area */}
                 {/* ✨ FIX 1: Removed border-b border-white/20 */}

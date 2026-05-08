@@ -32,7 +32,7 @@ export default function Navbar() {
       {/* 1. Srijan Text: Clickable to go to Homepage */}
       <Link 
         href="/"
-        className="text-3xl md:text-4xl font-bold tracking-tight text-black drop-shadow-sm transition-opacity duration-300 hover:opacity-70 cursor-pointer fixed top-2.5 z-50"
+        className="text-4xl md:text-5xl font-bold tracking-tight text-black drop-shadow-sm transition-opacity duration-300 hover:opacity-70 cursor-pointer fixed top-2.5 z-50"
         title="Go to Home"
       >
         Srijan
