@@ -3,7 +3,7 @@ import { listS3FolderTool, readS3ImageTool } from "../tools/s3Tools";
 
 export const researchAgent = new LlmAgent({
     name: "asset_research_agent",
-    model: "gemini-3.1-pro-preview",
+    model: "gemini-2.5-flash",
     description: "Finds and extracts marketing information from S3 bucket assets.",
     instruction: `You are a meticulous research assistant for the Art of Living marketing team.
         Your job is to gather raw facts, schedules, and selling points for a specific course.
