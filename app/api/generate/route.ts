@@ -7,13 +7,40 @@ import { researchAgent } from '@/lib/agents/researchAgent';
 import { copywriterAgent } from '@/lib/agents/copywriterAgent';
 import { getEventMessageCount, saveGeneratedBatch } from '@/lib/dynamo';
 
+const prettyLog = (title: string, data?: any) => {
+    console.log("\n" + "=".repeat(80));
+    console.log(`🔹 ${title}`);
+    console.log("=".repeat(80));
+
+    if (data !== undefined) {
+        if (typeof data === "string") {
+            console.log(
+                data
+                    .replace(/\r/g, " ")
+                    .replace(/\n/g, "\n")
+                    .replace(/\t/g, " ")
+                    .replace(/\r/g, " ")
+                    .replace(/[ ]{2,}/g, " ")
+                    .trim()
+            );
+        } else {
+            console.dir(data, { depth: null, colors: true });
+        }
+    }
+
+    console.log("=".repeat(80) + "\n");
+};
+
 
 export const maxDuration = 300; // Tells Vercel to allow 200 seconds of processing time
 
 const sessionService = new InMemorySessionService();
 
+
+
 export async function POST(request: Request) {
     try {
+        const startTime = Date.now();
         const body = await request.json();
         const { url, ...options } = body as any;
 
@@ -53,6 +80,12 @@ export async function POST(request: Request) {
         if (!event_id_val || !/^\d+$/.test(event_id_val)) {
             return NextResponse.json({ error: 'Please provide a valid Art of Living course link' }, { status: 400 });
         }
+
+        prettyLog("EVENT ID EXTRACTED", {
+            originalUrl: url,
+            parsedUrl: parsedUrlString,
+            eventId: event_id_val
+        });
 
         // ==========================================
         // 2. Configuration Check
@@ -100,6 +133,7 @@ export async function POST(request: Request) {
         }
 
         const courseData = Array.isArray(rawData) ? rawData[0] : rawData;
+        prettyLog("AOL API RAW RESPONSE", courseData);
 
         // ==========================================
         // 4. Validation & Data Extraction
@@ -160,19 +194,26 @@ export async function POST(request: Request) {
                 return value
                     .replace(/&[a-z]+;/gi, " ")
                     .replace(/<[^>]*>?/gm, " ")
+                    .replace(/\t/g, " ")
                     .replace(/\r/g, " ")
-                    .replace(/\n/g, " ")
-                    .replace(/\s+/g, " ")
+                    .replace(/[ ]{2,}/g, " ")
                     .trim();
             }
-            if (Array.isArray(value)) return value.map(cleanValue);
+
+            if (Array.isArray(value)) {
+                return value.map(cleanValue);
+            }
+
             if (value && typeof value === "object") {
                 const cleanedObj: any = {};
+
                 Object.entries(value).forEach(([key, val]) => {
                     cleanedObj[key] = cleanValue(tryParseJSON(val));
                 });
+
                 return cleanedObj;
             }
+
             return value;
         };
 
@@ -187,6 +228,11 @@ export async function POST(request: Request) {
         // 6. DynamoDB Gatekeeper (Rate Limiting)
         // ==========================================
         const currentGenerationCount = await getEventMessageCount(event_id_val);
+        prettyLog("DYNAMODB MESSAGE COUNT", {
+            event_id: event_id_val,
+            currentGenerationCount
+        });
+
         if (currentGenerationCount >= 15) {
             return NextResponse.json({
                 error: "This event has reached its maximum AI generation limit of 15 batches."
@@ -303,6 +349,11 @@ If no assets found, provide this DEFAULT style guide:
 [Any facts or angles from the assets that specifically appeal to: ${safeGet(options.audience, 'general audience')}. If none, write "None found — use general wellness angle."]
 `;
 
+
+
+
+
+        prettyLog("RESEARCH PROMPT", researchPrompt);
         // Run Research Agent
         const researchEvents = researchRunner.runAsync({
             userId: 'anonymous',
@@ -314,20 +365,32 @@ If no assets found, provide this DEFAULT style guide:
         });
 
         // Collect streamed text
+        // Collect streamed text
         let assetSummary = '';
 
         for await (const event of researchEvents) {
+
+            prettyLog("RESEARCH EVENT RECEIVED", {
+                author: event.author,
+                id: event.id,
+                errorCode: event.errorCode,
+                errorMessage: event.errorMessage
+            });
+
             if (event.content?.parts) {
-                assetSummary += event.content.parts
+
+                const textChunk = event.content.parts
                     .map((part: any) => part.text || '')
                     .join('');
+
+                console.log("\n🧠 RESEARCH CHUNK:");
+                console.log(textChunk);
+
+                assetSummary += textChunk;
             }
         }
 
-        console.log("=====================================");
-        console.log("🔍 S3 ASSET SUMMARY EXTRACTED:");
-        console.log(assetSummary);
-        console.log("=====================================");
+        prettyLog("FINAL S3 ASSET SUMMARY", assetSummary);
 
         // ==========================================
         // 9. Run Copywriter Agent (Text Generation)
@@ -498,6 +561,10 @@ Note: The message should be WhatsApp-friendly, Telegram-friendly, X-friendly, Em
 REMEMBER: Return ONLY this JSON array. Nothing else. No markdown code blocks. No explanation. Just the raw JSON.
 `;
 
+
+
+
+        prettyLog("COPYWRITER PROMPT", copywriterPrompt);
         // Run Copywriter Agent
         const copyEvents = copywriterRunner.runAsync({
             userId: 'anonymous',
@@ -509,13 +576,28 @@ REMEMBER: Return ONLY this JSON array. Nothing else. No markdown code blocks. No
         });
 
         // Collect streamed response
+        // Collect streamed response
         let rawOutput = '';
 
         for await (const event of copyEvents) {
+
+            prettyLog("COPYWRITER EVENT RECEIVED", {
+                author: event.author,
+                id: event.id,
+                errorCode: event.errorCode,
+                errorMessage: event.errorMessage
+            });
+
             if (event.content?.parts) {
-                rawOutput += event.content.parts
+
+                const textChunk = event.content.parts
                     .map((part: any) => part.text || '')
                     .join('');
+
+                console.log("\n✍️ COPYWRITER CHUNK:");
+                console.log(textChunk);
+
+                rawOutput += textChunk;
             }
         }
 
@@ -563,7 +645,7 @@ REMEMBER: Return ONLY this JSON array. Nothing else. No markdown code blocks. No
             console.error('\n=====================================');
             console.error('🚨 [Copywriter] JSON PARSE FAILED 🚨');
             console.error('Error:', e.message);
-            console.error('RAW AI OUTPUT:\n', rawOutput);
+            prettyLog("RAW COPYWRITER OUTPUT", rawOutput);
             console.error('=====================================\n');
 
             return NextResponse.json({
@@ -588,8 +670,15 @@ REMEMBER: Return ONLY this JSON array. Nothing else. No markdown code blocks. No
             copy_count: 0,
         }));
 
-
+        prettyLog("FINAL GENERATED MESSAGES", finalBatch);
         await saveGeneratedBatch(event_id_val, courseLabel, finalBatch);
+
+
+        prettyLog("TOTAL EXECUTION TIME", {
+            ms: Date.now() - startTime,
+            seconds: ((Date.now() - startTime) / 1000).toFixed(2)
+        });
+
 
         return NextResponse.json({
             success: true,

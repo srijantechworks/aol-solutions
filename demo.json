@@ -1,0 +1,24 @@
+INFO: [ADK
+] 2026-05-09T06: 28: 02.596Z event: {
+    "invocationId": "e-e6d98d58-4de6-46bb-b417-4c0a44463112",
+    "author": "user",
+    "actions": {
+        "stateDelta": {},
+        "artifactDelta": {},
+        "requestedAuthConfigs": {},
+        "requestedToolConfirmations": {}
+    },
+    "content": {
+        "role": "user",
+        "parts": [
+            {
+                "text": "\nYou are a marketing research assistant for Art of Living courses.\nYour job is to scan S3 assets (images, flyers, PDFs) for the course below and return a structured research summary.\n\nCOURSE TO RESEARCH: \"Online Meditation and Breath Workshop for Youth\"\n\nUSER PREFERENCES (use these to prioritise what to extract):\n- Target Audience: General public\n- Benefit to Highlight: General wellness and stress relief\n\n═══════════════════════════════════════════\nSCANNING INSTRUCTIONS\n═══════════════════════════════════════════\nScan all available S3 assets for this course. For EACH asset you find:\n\n1. CONTENT EXTRACTION — Extract:\n   - Key benefits and transformation statements\n   - Testimonials or social proof quotes\n   - Schedule/timing details visible in the asset\n   - Any unique selling points or phrases\n   - Teacher names or credentials shown\n\n2. STYLE EXTRACTION — Note EXACTLY:\n   - Emoji usage: which emojis are used, how many, where (start/middle/end of lines)\n   - Line break patterns: how much whitespace between sections\n   - Structure flow: e.g. Hook → Benefits → Details → CTA → Contact\n   - Text alignment: centered, left-aligned, mixed\n   - Any bold/italic formatting patterns\n   - Opening hook style (question, statement, emoji-led)\n\n═══════════════════════════════════════════\nFALLBACK RULES (CRITICAL — follow these if assets are missing)\n═══════════════════════════════════════════\n- If NO assets are found for this course: Return the phrase \"NO_ASSETS_FOUND\" as your entire content section and provide a DEFAULT style guide using standard WhatsApp message formatting (emoji-led lines, short paragraphs, generous spacing).\n- If SOME assets fail to load: Work with what you have. Never return an error. Always return a complete summary.\n- If an asset has no readable text: Note the visual layout and emoji style only.\n- Never say \"I could not\" or \"I was unable to\". Always return your best attempt.\n\n═══════════════════════════════════════════\nOUTPUT FORMAT (MANDATORY — always return this exact structure)\n═══════════════════════════════════════════\nReturn your response in this EXACT structure with these exact headers.\nDo not add extra sections. Do not skip sections even if empty:\n\n## ASSETS_FOUND\n[YES / NO / PARTIAL — and list the filenames you scanned]\n\n## KEY_FACTS\n[Bullet points of benefits, testimonials, unique selling points extracted. If none found, write \"None extracted — use course API data only.\"]\n\n## STYLE_GUIDE\n[Describe the exact formatting pattern to replicate. Include:\n- Emoji placement and frequency\n- Line break frequency\n- Section order (e.g. Hook → Body → CTA → Contact)\n- Tone (warm/urgent/inspirational)\n- Opening hook style\nIf no assets found, provide this DEFAULT style guide:\n\"Use WhatsApp-friendly formatting: emoji at start of each key line, 1 blank line between sections, flow: Hook → Dates/Timings → Venue → Benefits → CTA Link → Contact. Tone: warm and inviting. Keep lines short (max 10 words each).\"]\n\n## AUDIENCE_SPECIFIC_INSIGHTS\n[Any facts or angles from the assets that specifically appeal to: general audience. If none, write \"None found — use general wellness angle.\"]\n"
+            }
+        ]
+    },
+    "id": "fQedWEW4",
+    "longRunningToolIds": [],
+    "timestamp": 1778308082595
+}
+INFO: [ADK
+] 2026-05-09T06: 28: 02.607Z Sending out request, model: gemini-3.1-pro-preview, backend: GEMINI_API, stream: false
